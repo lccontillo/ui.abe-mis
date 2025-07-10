@@ -75,7 +75,7 @@ const router = createRouter({
         {
           path: '',
           name: 'AccountSettings',
-          component: () => AccountSettings,
+          component: AccountSettings,
         },
         {
           path: 'templates',

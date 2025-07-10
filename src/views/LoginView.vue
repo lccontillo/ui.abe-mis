@@ -20,7 +20,8 @@
 
         <button class="login-button" :disabled="loading" type="submit">
           <template v-if="loading">
-            <DonutLoader color="white" size="1.5rem" :multi="false" />
+            Signing In...
+            <!-- <DonutLoader color="white" size="1.5rem" :multi="false" /> -->
           </template>
           <template v-else>Login</template>
         </button>
