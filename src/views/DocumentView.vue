@@ -109,7 +109,7 @@ async function fetchDocuments() {
   params.append('page', page.value)
   params.append('limit', limit.value)
 
-  const res = await fetch(`http://localhost:3000/generated_documents?${params}`, {
+  const res = await fetch(`https://api-ai-portraits.duckdns.org/generated_documents?${params}`, {
     headers: { Authorization: `Bearer ${token}` },
   })
   const data = await res.json()

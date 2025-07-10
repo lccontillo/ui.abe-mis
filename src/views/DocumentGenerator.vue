@@ -40,7 +40,7 @@ const groupDropdownRef = ref(null)
 
 // Fetch Data
 const fetchFcas = async () => {
-  const res = await fetch('http://localhost:3000/fcas', {
+  const res = await fetch('https://api-ai-portraits.duckdns.org/fcas', {
     headers: { Authorization: `Bearer ${token}` },
   })
   const data = await res.json()
@@ -48,7 +48,7 @@ const fetchFcas = async () => {
 }
 
 const fetchGroups = async () => {
-  const res = await fetch('http://localhost:3000/groups', {
+  const res = await fetch('https://api-ai-portraits.duckdns.org/groups', {
     headers: { Authorization: `Bearer ${token}` },
   })
   groups.value = await res.json()
@@ -56,9 +56,12 @@ const fetchGroups = async () => {
 
 const fetchDocuments = async () => {
   if (!selectedGroup.value) return
-  const res = await fetch(`http://localhost:3000/documents?group=${selectedGroup.value.id}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  })
+  const res = await fetch(
+    `https://api-ai-portraits.duckdns.org/documents?group=${selectedGroup.value.id}`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+    },
+  )
   const data = await res.json()
   documents.value = data.data || []
 }
@@ -139,7 +142,7 @@ async function openFormModal(doc) {
   // Fetch previous generation for this FCA and document only
   try {
     const res = await fetch(
-      `http://localhost:3000/generations?fca_id=${selectedFca.value?.id}&document_id=${doc.id}`,
+      `https://api-ai-portraits.duckdns.org/generations?fca_id=${selectedFca.value?.id}&document_id=${doc.id}`,
       {
         headers: { Authorization: `Bearer ${token}` },
       },
@@ -183,7 +186,7 @@ async function submitForm() {
     return
   }
   try {
-    const res = await fetch('http://localhost:3000/generate', {
+    const res = await fetch('https://api-ai-portraits.duckdns.org/generate', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -244,7 +247,7 @@ async function downloadDocument(doc) {
     return
   }
   try {
-    const res = await fetch('http://localhost:3000/download_document', {
+    const res = await fetch('https://api-ai-portraits.duckdns.org/download_document', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -282,7 +285,7 @@ async function downloadAndZipDocuments(docIds) {
 
   for (const id of docIds) {
     try {
-      const res = await fetch('http://localhost:3000/download_document', {
+      const res = await fetch('https://api-ai-portraits.duckdns.org/download_document', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -100,7 +100,7 @@ async function updatePassword() {
   }
   passwordMismatch.value = false
 
-  const res = await fetch('http://localhost:3000/update_me', {
+  const res = await fetch('https://api-ai-portraits.duckdns.org/update_me', {
     method: 'PUT',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -115,7 +115,7 @@ async function updatePassword() {
 }
 
 async function updateEmail() {
-  const res = await fetch('http://localhost:3000/update_me', {
+  const res = await fetch('https://api-ai-portraits.duckdns.org/update_me', {
     method: 'PUT',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -130,7 +130,7 @@ async function updateEmail() {
 }
 
 async function updateName() {
-  const res = await fetch('http://localhost:3000/update_me', {
+  const res = await fetch('https://api-ai-portraits.duckdns.org/update_me', {
     method: 'PUT',
     headers: {
       Authorization: `Bearer ${token}`,

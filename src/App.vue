@@ -11,7 +11,7 @@ onMounted(async () => {
   const token = localStorage.getItem('token')
   if (!token) return
 
-  const res = await fetch('http://localhost:3000/me', {
+  const res = await fetch('https://api-ai-portraits.duckdns.org/me', {
     headers: {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',

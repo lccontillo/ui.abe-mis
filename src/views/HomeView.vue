@@ -126,7 +126,7 @@ const fetchDocument = async () => {
   loading.value = true
   const token = localStorage.getItem('token')
   const id = route.params.id
-  const res = await fetch(`http://localhost:3000/document/${id}`, {
+  const res = await fetch(`https://api-ai-portraits.duckdns.org/document/${id}`, {
     headers: { Authorization: `Bearer ${token}` },
   })
   const data = await res.json()
@@ -184,7 +184,7 @@ const submitDocument = async () => {
   fd.append('schema', JSON.stringify(fields))
   // file upload not handled here, add if needed
 
-  await fetch(`http://localhost:3000/document/${documentData.value.id}`, {
+  await fetch(`https://api-ai-portraits.duckdns.org/document/${documentData.value.id}`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
     body: fd,

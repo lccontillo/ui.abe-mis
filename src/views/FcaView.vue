@@ -136,7 +136,7 @@ async function fetchFcas() {
   params.append('limit', pagination.value.limit)
 
   try {
-    const res = await fetch(`http://localhost:3000/fcas?${params}`, {
+    const res = await fetch(`https://api-ai-portraits.duckdns.org/fcas?${params}`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
