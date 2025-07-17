@@ -131,14 +131,14 @@ function toggleSort(column) {
 }
 
 async function fetchGroups() {
-  const res = await fetch('https://api-ai-portraits.duckdns.org/groups', {
+  const res = await fetch('http://localhost:3000/groups', {
     headers: { Authorization: `Bearer ${token}` },
   })
   groups.value = await res.json()
 }
 
 async function fetchDocuments() {
-  const url = new URL('https://api-ai-portraits.duckdns.org/documents')
+  const url = new URL('http://localhost:3000/documents')
   if (activeGroupId.value) url.searchParams.set('group', activeGroupId.value)
   url.searchParams.set('sort', sort.value.column)
   url.searchParams.set('order', sort.value.order)
@@ -152,7 +152,7 @@ async function fetchDocuments() {
 }
 
 async function createGroup() {
-  await fetch('https://api-ai-portraits.duckdns.org/group', {
+  await fetch('http://localhost:3000/group', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ name: newGroupName.value }),
@@ -169,7 +169,7 @@ function startEditGroup(group) {
 }
 
 async function updateGroup() {
-  await fetch('https://api-ai-portraits.duckdns.org/group', {
+  await fetch('http://localhost:3000/group', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ id: editingGroup.value.id, name: updatedGroupName.value }),
@@ -197,8 +197,8 @@ async function submitDocument() {
   if (form.value.file) fd.append('file', form.value.file)
 
   const url = isEdit
-    ? `https://api-ai-portraits.duckdns.org/document/${editingDocument.value.id}`
-    : 'https://api-ai-portraits.duckdns.org/document'
+    ? `http://localhost:3000/document/${editingDocument.value.id}`
+    : 'http://localhost:3000/document'
 
   await fetch(url, {
     method: 'POST',
@@ -212,7 +212,7 @@ async function submitDocument() {
 
 async function deleteDocument(doc) {
   if (!confirm('Delete this document?')) return
-  await fetch(`https://api-ai-portraits.duckdns.org/document/${doc.id}`, {
+  await fetch(`http://localhost:3000/document/${doc.id}`, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${token}` },
   })
@@ -221,7 +221,7 @@ async function deleteDocument(doc) {
 
 async function deleteGroup(groupId) {
   if (!confirm('Delete this group?')) return
-  await fetch(`https://api-ai-portraits.duckdns.org/group/${groupId}`, {
+  await fetch(`http://localhost:3000/group/${groupId}`, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${token}` },
   })

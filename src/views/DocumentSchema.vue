@@ -179,9 +179,9 @@
 </template>
 
 <script setup>
-import { reactive, ref, onMounted, nextTick } from 'vue'
+import { reactive, ref, onMounted, nextTick, getCurrentInstance } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-
+const { proxy } = getCurrentInstance()
 const fieldTypes = [
   'text',
   'number',
@@ -204,7 +204,7 @@ const fetchDocument = async () => {
   loading.value = true
   const token = localStorage.getItem('token')
   const id = route.params.id
-  const res = await fetch(`https://api-ai-portraits.duckdns.org/document/${id}`, {
+  const res = await fetch(`http://localhost:3000/document/${id}`, {
     headers: { Authorization: `Bearer ${token}` },
   })
   const data = await res.json()
@@ -258,26 +258,57 @@ const addTableColumn = (tableField) => {
 }
 
 const submitDocument = async () => {
-  console.log(JSON.stringify(fields))
-  const token = localStorage.getItem('token')
-  const fd = new FormData()
-  fd.append('group_id', documentData.value.group_id)
-  fd.append('name', documentData.value.name)
-  fd.append('file_path', documentData.value.file_path || '')
-  fd.append('schema', JSON.stringify(fields))
-  // file upload not handled here, add if needed
+  try {
+    const token = localStorage.getItem('token')
+    if (!token) {
+      proxy.$toast({
+        type: 'error',
+        message: 'Authentication token missing.',
+      })
+      return
+    }
 
-  await fetch(`https://api-ai-portraits.duckdns.org/document/${documentData.value.id}`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
-    body: fd,
-  })
-  // Optionally show a message or redirect
-  // router.push('/settings/document')
+    const fd = new FormData()
+    fd.append('group_id', documentData.value.group_id)
+    fd.append('name', documentData.value.name)
+    fd.append('file_path', documentData.value.file_path || '')
+    fd.append('schema', JSON.stringify(fields))
+
+    // Optional: If handling a file input
+    // if (documentData.value.file instanceof File) {
+    //   fd.append('file', documentData.value.file)
+    // }
+
+    const response = await fetch(`http://localhost:3000/document/${documentData.value.id}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: fd,
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(errorText || 'Failed to submit document')
+    }
+
+    proxy.$toast({
+      type: 'success',
+      message: 'Document submitted successfully.',
+    })
+
+    router.push('/settings/templates')
+  } catch (err) {
+    console.error(err)
+    proxy.$toast({
+      type: 'error',
+      message: 'An error occurred while submitting the document.',
+    })
+
+    alert('Error: ' + err.message)
+  }
 }
 
 const cancelEdit = () => {
-  router.push('/settings/document')
+  router.push('/settings/templates')
 }
 
 // --- Field Label/Word Table Copy helpers ---

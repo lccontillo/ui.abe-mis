@@ -107,7 +107,7 @@ const passwordForm = reactive({
 
 async function fetchUsers() {
   try {
-    const res = await fetch('https://api-ai-portraits.duckdns.org/users', {
+    const res = await fetch('http://localhost:3000/users', {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -120,7 +120,7 @@ async function fetchUsers() {
 
 async function createUser() {
   try {
-    const res = await fetch('https://api-ai-portraits.duckdns.org/create_user', {
+    const res = await fetch('http://localhost:3000/create_user', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -157,7 +157,7 @@ function confirmToggle(user) {
 
 async function toggleActivation(user) {
   try {
-    const res = await fetch(`https://api-ai-portraits.duckdns.org/toggle_user/${user.id}`, {
+    const res = await fetch(`http://localhost:3000/toggle_user/${user.id}`, {
       method: 'PUT',
       headers: {
         Authorization: `Bearer ${token}`,
@@ -184,7 +184,7 @@ async function updatePassword() {
   }
 
   try {
-    const res = await fetch(`https://api-ai-portraits.duckdns.org/update_password`, {
+    const res = await fetch(`http://localhost:3000/update_password`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',

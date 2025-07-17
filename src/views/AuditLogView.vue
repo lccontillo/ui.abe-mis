@@ -25,7 +25,7 @@ const fetchLogs = async () => {
   if (filterUser.value) params.append('username', filterUser.value)
   if (filterAction.value) params.append('action_id', filterAction.value)
 
-  const res = await fetch(`https://api-ai-portraits.duckdns.org/audit_logs?${params}`, {
+  const res = await fetch(`http://localhost:3000/audit_logs?${params}`, {
     headers: { Authorization: `Bearer ${token}` },
   })
 
