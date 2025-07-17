@@ -3,7 +3,7 @@
     <TitleBar title="FCA Details" :icon="Document20" />
 
     <!-- Tabs -->
-    <div class="tabs">
+    <!-- <div class="tabs">
       <button
         :class="['tab-btn', activeTab === 'profile' ? 'active' : '']"
         @click="activeTab = 'profile'"
@@ -16,7 +16,7 @@
       >
         Documents
       </button>
-    </div>
+    </div> -->
 
     <!-- Profile Tab -->
     <div v-if="activeTab === 'profile'" class="profile-tab">
@@ -91,10 +91,10 @@
           <div v-for="bod in fca.bods" :key="bod.id" class="bod-block">
             <div class="row">
               <div class="field"><strong>Name:</strong> {{ bod.name }}</div>
-              <div class="field"><strong>Position:</strong> {{ bod.position }}</div>
+              <!-- <div class="field"><strong>Position:</strong> {{ bod.position }}</div>
               <div class="field"><strong>Civil Status:</strong> {{ bod.civil_status }}</div>
               <div class="field"><strong>Birth Date:</strong> {{ formatDate(bod.birth_date) }}</div>
-              <div class="field"><strong>Mobile No:</strong> {{ bod.mobile_no }}</div>
+              <div class="field"><strong>Mobile No:</strong> {{ bod.mobile_no }}</div> -->
             </div>
           </div>
         </section>

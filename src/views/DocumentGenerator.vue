@@ -3,6 +3,10 @@ import { ref, computed, onMounted, watch, reactive } from 'vue'
 import fuzzysort from 'fuzzysort'
 import { computePosition, autoUpdate, offset, flip, shift } from '@floating-ui/dom'
 import { downloadZip } from 'client-zip'
+import { useRoute } from 'vue-router'
+const route = useRoute()
+
+const isViewMode = computed(() => route.query.document_id && route.query.fca && route.query.group)
 
 // Import field components
 import InputField from '@/components/InputField.vue'
@@ -329,6 +333,7 @@ const onFcaChange = () => {
 }
 
 const onGroupChange = () => {
+  // alert('Group changed')
   const match = groups.value.find((group) => group.name === searchGroup.value)
   if (match) {
     selectedGroup.value = match
@@ -336,9 +341,38 @@ const onGroupChange = () => {
   }
 }
 
-onMounted(() => {
-  fetchFcas()
-  fetchGroups()
+onMounted(async () => {
+  await fetchFcas()
+  await fetchGroups()
+
+  const fcaName = route.query.fca
+  const groupName = route.query.group
+  const docId = Number(route.query.document_id)
+
+  if (fcaName) {
+    const matchFca = fcas.value.find((f) => f.name === fcaName)
+    if (matchFca) {
+      selectedFca.value = matchFca
+      searchFca.value = matchFca.name
+    }
+  }
+
+  if (groupName) {
+    const matchGroup = groups.value.find((g) => g.name === groupName)
+    if (matchGroup) {
+      selectedGroup.value = matchGroup
+      searchGroup.value = matchGroup.name
+      await fetchDocuments()
+
+      if (docId) {
+        const matchDoc = documents.value.find((d) => d.id === docId)
+        if (matchDoc) {
+          selectedDocuments.value = [matchDoc]
+          openFormModal(matchDoc)
+        }
+      }
+    }
+  }
 })
 </script>
 
@@ -348,17 +382,28 @@ onMounted(() => {
     <h1 class="form-title">Generate Documents</h1>
     <div class="form-group">
       <label for="fcaInput">FCA</label>
-      <input id="fcaInput" class="input" list="fcaList" v-model="searchFca" @change="onFcaChange" />
+      <!-- <input id="fcaInput" class="input" list="fcaList" v-model="searchFca" @change="onFcaChange" />
       <datalist id="fcaList">
         <option v-for="fca in fcas" :key="fca.id" :value="fca.name" />
-      </datalist>
+      </datalist> -->
+
+      <v-select
+        v-model="searchFca"
+        :options="fcas"
+        label="name"
+        :reduce="(fca) => fca.name"
+        @update:modelValue="onFcaChange"
+        class="my-vue-select"
+        :placeholder="'Search FCA...'"
+        clearable
+      />
       <p v-if="selectedFca" class="selected">Selected: {{ selectedFca.name }}</p>
     </div>
 
     <!-- Group Selection -->
     <div class="form-group">
       <label for="groupInput">Group</label>
-      <input
+      <!-- <input
         id="groupInput"
         class="input"
         list="groupList"
@@ -367,7 +412,19 @@ onMounted(() => {
       />
       <datalist id="groupList">
         <option v-for="group in groups" :key="group.id" :value="group.name" />
-      </datalist>
+      </datalist> -->
+      <v-select
+        v-model="searchGroup"
+        :options="groups"
+        label="name"
+        :reduce="(group) => group.name"
+        @update:modelValue="onGroupChange"
+        class="my-vue-select"
+        placeholder="Search group..."
+        clearable
+      />
+
+      {{ searchGroup }}
       <p v-if="selectedGroup" class="selected">Selected: {{ selectedGroup.name }}</p>
     </div>
 
@@ -376,17 +433,17 @@ onMounted(() => {
       <h3>Documents</h3>
       <div v-for="doc in documents" :key="doc.id" class="document-item">
         <label>
-          <input type="checkbox" :value="doc" v-model="selectedDocuments" />
+          <!-- <input type="checkbox" :value="doc" v-model="selectedDocuments" /> -->
           {{ doc.name }}
         </label>
         <div class="document-actions">
-          <button class="btn" @click="openFormModal(doc)">Fill</button>
+          <button class="btn" v-if="doc.schema" @click="openFormModal(doc)">Fill</button>
           <button class="btn" @click="downloadDocument(doc)">Download</button>
         </div>
       </div>
     </div>
 
-    <button class="btn full-width" @click="handleGenerateClick">Download Zip</button>
+    <!-- <button class="btn full-width" @click="handleGenerateClick">Download Zip</button> -->
 
     <!-- Right Side Modal -->
     <div v-if="showModal" class="side-modal">
@@ -494,8 +551,10 @@ onMounted(() => {
 }
 
 .modal-buttons {
-  margin-top: 2rem;
   display: flex;
   gap: 1rem;
+  position: sticky;
+  bottom: 0;
+  background-color: #fff;
 }
 </style>

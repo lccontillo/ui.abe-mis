@@ -24,7 +24,7 @@
     <DataTable :data="fcas" :columns="columns" :sort="sort" :onSort="toggleSort">
       <template #actions="{ row }">
         <View20 title="View" class="action-icon" @click="viewFca(row.id)" />
-        <DocumentExport20 title="Generate" class="action-icon" @click="generateDocs(row.id)" />
+        <!-- <DocumentExport20 title="Generate" class="action-icon" @click="generateDocs(row.id)" /> -->
         <TrashCan20 title="Delete" class="action-icon text-red" @click="deleteFca(row.id)" />
       </template>
     </DataTable>
@@ -118,10 +118,26 @@ function generateDocs(id) {
   router.push(`/generate?fca=${id}`)
 }
 
-function deleteFca(id) {
-  if (confirm('Are you sure you want to delete this FCA?')) {
-    // Call delete API here
+async function deleteFca(id) {
+  if (!confirm('Are you sure you want to delete this FCA?')) return
+
+  try {
+    const res = await fetch(`https://api-ai-portraits.duckdns.org/fcas/${id}`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
+
+    if (!res.ok) {
+      const err = await res.json()
+      throw new Error(err.message || 'Failed to delete FCA.')
+    }
+
     alert(`Deleted FCA ${id}`)
+    await fetchFcas() // Refresh the list
+  } catch (err) {
+    alert('Error: ' + err.message)
   }
 }
 

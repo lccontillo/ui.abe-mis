@@ -1,14 +1,22 @@
 <template>
   <div class="date-field">
     <label class="field-label">{{ field.field_label }}</label>
-    <input class="date-input" type="date" @input="onDateChange" />
+    <input class="date-input" :value="formattedValue" type="date" @input="onDateChange" />
   </div>
 </template>
 
 <script setup>
+import { computed } from 'vue'
 const props = defineProps(['field', 'modelValue'])
 const emit = defineEmits(['update:modelValue'])
 
+const formattedValue = computed(() => {
+  if (!props.modelValue?.year || !props.modelValue?.month || !props.modelValue?.day) return ''
+  const y = props.modelValue.year
+  const m = String(props.modelValue.month).padStart(2, '0')
+  const d = String(props.modelValue.day).padStart(2, '0')
+  return `${y}-${m}-${d}`
+})
 const onDateChange = (e) => {
   const date = new Date(e.target.value)
   if (isNaN(date)) return

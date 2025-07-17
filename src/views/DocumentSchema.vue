@@ -300,9 +300,9 @@ function getWordEndForRow() {
 function toPascalCase(str) {
   if (!str) return ''
   return str
-    .replace(/[^a-zA-Z0-9 ]/g, '')
-    .replace(/\w+/g, (w) => (w[0] ? w[0].toUpperCase() + w.slice(1).toLowerCase() : ''))
-    .replace(/\s+/g, '')
+    .replace(/[^a-zA-Z0-9_\s]/g, '') // remove all non-alphanumeric except _ and space
+    .replace(/[_\s]+(.)?/g, (_, c) => (c ? c.toUpperCase() : '')) // convert next letters to uppercase
+    .replace(/^(.)/, (m) => m.toUpperCase()) // capitalize first character
 }
 
 function copyText(label) {

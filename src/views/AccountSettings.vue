@@ -31,39 +31,39 @@
         </div>
       </form>
     </div>
+  </div>
 
-    <!-- Change Email Modal -->
-    <div v-if="modals.email" class="modal-overlay">
-      <div class="modal-content">
-        <h3>Change Email</h3>
-        <form @submit.prevent="updateEmail">
-          <div class="form-group">
-            <label>New Email</label>
-            <input type="email" v-model="emailForm.new" required />
-          </div>
-          <div class="modal-actions">
-            <button type="submit" class="btn-primary">Update</button>
-            <button type="button" class="btn-secondary" @click="closeAllModals">Cancel</button>
-          </div>
-        </form>
-      </div>
+  <!-- Change Email Modal -->
+  <div v-if="modals.email" class="modal-overlay">
+    <div class="modal-content">
+      <h3>Change Email</h3>
+      <form @submit.prevent="updateEmail">
+        <div class="form-group">
+          <label>New Email</label>
+          <input type="email" v-model="emailForm.new" required />
+        </div>
+        <div class="modal-actions">
+          <button type="submit" class="btn-primary">Update</button>
+          <button type="button" class="btn-secondary" @click="closeAllModals">Cancel</button>
+        </div>
+      </form>
     </div>
+  </div>
 
-    <!-- Change Name Modal -->
-    <div v-if="modals.name" class="modal-overlay">
-      <div class="modal-content">
-        <h3>Change Name</h3>
-        <form @submit.prevent="updateName">
-          <div class="form-group">
-            <label>New Name</label>
-            <input type="text" v-model="nameForm.new" required />
-          </div>
-          <div class="modal-actions">
-            <button type="submit" class="btn-primary">Update</button>
-            <button type="button" class="btn-secondary" @click="closeAllModals">Cancel</button>
-          </div>
-        </form>
-      </div>
+  <!-- Change Name Modal -->
+  <div v-if="modals.name" class="modal-overlay">
+    <div class="modal-content">
+      <h3>Change Name</h3>
+      <form @submit.prevent="updateName">
+        <div class="form-group">
+          <label>New Name</label>
+          <input type="text" v-model="nameForm.new" required />
+        </div>
+        <div class="modal-actions">
+          <button type="submit" class="btn-primary">Update</button>
+          <button type="button" class="btn-secondary" @click="closeAllModals">Cancel</button>
+        </div>
+      </form>
     </div>
   </div>
 </template>

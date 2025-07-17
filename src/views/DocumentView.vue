@@ -4,13 +4,87 @@
 
     <!-- Filters -->
     <div class="filters">
-      <input v-model="selectedDocument" placeholder="Filter by Document" />
-      <input v-model="selectedFca" placeholder="Filter by FCA" />
-      <input v-model="selectedGroup" placeholder="Filter by Group" />
-      <input v-model="selectedUser" placeholder="Filter by User" />
+      <!-- Document Name -->
+      <!-- <input v-model="selectedDocument" placeholder="Filter by Document" /> -->
+      <!-- <input
+        list="docList"
+        v-model="searchDoc"
+        @change="onDocChange"
+        placeholder="Filter by  Document"
+      />
+      <datalist id="docList">
+        <option v-for="doc in docs" :key="doc.id" :value="doc.name" />
+      </datalist> -->
+
+      <v-select
+        v-model="selectedDocument"
+        :options="docs"
+        label="name"
+        :reduce="(g) => g"
+        placeholder="Select Document"
+      ></v-select>
+
+      <!-- FCA Dropdown -->
+      <!-- <input list="fcaList" v-model="searchFca" @change="onFcaChange" placeholder="Filter by FCA" />
+      <datalist id="fcaList">
+        <option v-for="fca in fcas" :key="fca.id" :value="fca.name" />
+      </datalist> -->
+
+      <v-select
+        v-model="selectedFca"
+        :options="fcas"
+        label="name"
+        :reduce="(g) => g"
+        placeholder="Select FCA"
+      ></v-select>
+      <!-- Group Dropdown -->
+      <!-- <input
+        list="groupList"
+        v-model="searchGroup"
+        @change="onGroupChange"
+        placeholder="Filter by Group"
+      />
+      <datalist id="groupList">
+        <option v-for="group in groups" :key="group.id" :value="group.name" />
+      </datalist> -->
+
+      <!-- <Vue3Select
+        v-model="selectedGroup"
+        :options="groups"
+        label="name"
+        :reduce="(group) => group"
+        placeholder="Search or select a group"
+      /> -->
+      <v-select
+        v-model="selectedGroup"
+        :options="groups"
+        label="name"
+        :reduce="(g) => g"
+        placeholder="Select group"
+      ></v-select>
+      <!-- User Dropdown -->
+      <!-- <input
+        list="userList"
+        v-model="searchUser"
+        @change="onUserChange"
+        placeholder="Filter by User"
+      />
+      <datalist id="userList">
+        <option v-for="user in users" :key="user.id" :value="user.name" />
+      </datalist> -->
+
+      <v-select
+        v-model="selectedUser"
+        :options="users"
+        label="name"
+        :reduce="(g) => g"
+        placeholder="Select User"
+      ></v-select>
+
       <button @click="fetchDocuments">Apply</button>
     </div>
 
+    <!-- {{ documents }} -->
     <!-- Table -->
     <DataTable
       :data="documents"
@@ -19,7 +93,11 @@
       :onSort="toggleSort"
     >
       <template #actions="{ row }">
-        <!-- <View20 title="View" class="action-icon" @click="viewDocument(row.id)" /> -->
+        <View20
+          title="View"
+          class="action-icon"
+          @click="viewDocument(row.document_id, row.fca_name, row.group_name)"
+        />
         <TrashCan20 title="Delete" class="action-icon text-red" @click="deleteDocument(row.id)" />
       </template>
     </DataTable>
@@ -62,6 +140,31 @@ const selectedFca = ref('')
 const selectedUser = ref('')
 const selectedGroup = ref('')
 
+const searchDoc = ref('')
+const searchFca = ref('')
+const searchGroup = ref('')
+const searchUser = ref('')
+
+const docs = ref([])
+const fcas = ref([])
+const groups = ref([])
+const users = ref([])
+
+function onDocChange() {
+  selectedDocument.value = docs.value.find((doc) => doc.name === searchDoc.value) || null
+}
+function onFcaChange() {
+  selectedFca.value = fcas.value.find((fca) => fca.name === searchFca.value) || null
+}
+
+function onGroupChange() {
+  selectedGroup.value = groups.value.find((group) => group.name === searchGroup.value) || null
+}
+
+function onUserChange() {
+  selectedUser.value = users.value.find((user) => user.name === searchUser.value) || null
+}
+
 const page = ref(Number(route.query.page) || 1)
 const limit = ref(Number(route.query.limit) || 10)
 const sort = ref(route.query.sort || 'updated_at')
@@ -87,23 +190,42 @@ function toggleSort(column) {
   fetchDocuments()
 }
 
-function viewDocument(id) {
-  router.push(`/preview?document=${id}`)
+function viewDocument(id, fca, group) {
+  // router.push(`/preview?document=${id}`)
+  router.push(
+    `/generate?document_id=${id}&fca=${encodeURIComponent(fca)}&group=${encodeURIComponent(group)}`,
+  )
 }
 
-function deleteDocument(id) {
-  if (confirm('Delete this document?')) {
-    // Call delete API here
+async function deleteDocument(id) {
+  if (!confirm('Delete this document?')) return
+
+  try {
+    const res = await fetch(`https://api-ai-portraits.duckdns.org/generated_document/${id}`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
+
+    if (!res.ok) {
+      const err = await res.json()
+      throw new Error(err.message || 'Failed to delete document.')
+    }
+
     alert(`Deleted document ${id}`)
+    await fetchDocuments() // Refresh list
+  } catch (err) {
+    alert('Error: ' + err.message)
   }
 }
 
 async function fetchDocuments() {
   const params = new URLSearchParams()
-  if (selectedDocument.value) params.append('document_name', selectedDocument.value)
-  if (selectedFca.value) params.append('fca_name', selectedFca.value)
-  if (selectedUser.value) params.append('user_name', selectedUser.value)
-  if (selectedGroup.value) params.append('group_name', selectedGroup.value)
+  if (selectedDocument.value) params.append('document_name', selectedDocument.value.name)
+  if (selectedFca.value) params.append('fca_name', selectedFca.value.name)
+  if (selectedUser.value) params.append('user_name', selectedUser.value.name)
+  if (selectedGroup.value) params.append('group_name', selectedGroup.value.name)
   params.append('sort', sort.value)
   params.append('order', order.value)
   params.append('page', page.value)
@@ -117,6 +239,50 @@ async function fetchDocuments() {
   total.value = data.total
 }
 
+const fetchDocs = async () => {
+  const res = await fetch(`https://api-ai-portraits.duckdns.org/documents`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  const data = await res.json()
+  docs.value = data.data || []
+}
+const fetchFcas = async () => {
+  try {
+    const res = await fetch('https://api-ai-portraits.duckdns.org/fcas', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    const data = await res.json()
+    fcas.value = data.data || []
+  } catch (err) {
+    console.error('Failed to fetch FCAs:', err)
+  }
+}
+
+const fetchGroups = async () => {
+  try {
+    const res = await fetch('https://api-ai-portraits.duckdns.org/groups', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    const data = await res.json()
+    groups.value = data || []
+    console.log(groups.value)
+  } catch (err) {
+    console.error('Failed to fetch groups:', err)
+  }
+}
+
+const fetchUsers = async () => {
+  try {
+    const res = await fetch('https://api-ai-portraits.duckdns.org/users', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    const data = await res.json()
+    users.value = data || []
+  } catch (err) {
+    console.error('Failed to fetch users:', err)
+  }
+}
+
 watch([page, limit, sort, order], () => {
   router.replace({
     query: {
@@ -128,7 +294,13 @@ watch([page, limit, sort, order], () => {
   })
 })
 
-onMounted(fetchDocuments)
+onMounted(() => {
+  fetchDocuments()
+  fetchFcas()
+  fetchGroups()
+  fetchUsers()
+  fetchDocs()
+})
 </script>
 
 <style scoped>
@@ -142,18 +314,23 @@ onMounted(fetchDocuments)
   gap: 0.75rem;
   margin-bottom: 1rem;
 }
-.filters input {
-  padding: 6px 10px;
+.filters input,
+.filters .v-select {
+  padding: 6px 4px;
   font-size: 0.9rem;
+  min-width: 200px;
+  flex: 1;
 }
+
 .filters button {
-  padding: 6px 12px;
+  padding: 6px 6px;
   background: #2e7d32;
   color: white;
   border: none;
   border-radius: 4px;
   font-size: 0.85rem;
   cursor: pointer;
+  width: 100px;
 }
 .filters button:hover {
   background-color: #256128;

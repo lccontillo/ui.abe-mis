@@ -57,7 +57,7 @@
           v-model="form.general.major_commodity"
           :field="{
             field_label: 'Major Commodity',
-            properties: { options: ['Rice', 'Corn', 'Coconut'], multiple: false },
+            properties: { options: ['Rice', 'Corn', 'Peanuts'], multiple: false },
           }"
         />
         <InputField
@@ -94,13 +94,19 @@
       <div v-for="(officer, i) in form.officers" :key="i" class="group-block">
         <div class="row">
           <InputField v-model="officer.name" :field="{ field_label: 'Name', properties: {} }" />
-          <InputField
+          <DropdownField
             v-model="officer.position"
-            :field="{ field_label: 'Position', properties: {} }"
+            :field="{
+              field_label: 'Position',
+              properties: { options: ['Chairman', 'Treasurer', 'Secretary'], multiple: false },
+            }"
           />
-          <InputField
+          <DropdownField
             v-model="officer.civil_status"
-            :field="{ field_label: 'Civil Status', properties: {} }"
+            :field="{
+              field_label: 'Civil Status',
+              properties: { options: ['Single', 'Married', 'Widowed'], multiple: false },
+            }"
           />
         </div>
         <div class="row">
@@ -272,8 +278,6 @@ async function submitForm() {
 .fca-form {
   background: #fff;
   padding: 2rem;
-  border-radius: 10px;
-  box-shadow: 0 3px 10px #0002;
   max-width: 960px;
   margin: auto;
 }

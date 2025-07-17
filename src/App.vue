@@ -51,39 +51,35 @@ function logout() {
         </div>
 
         <nav class="nav">
-          <RouterLink to="/" class="nav-item" :class="{ active: route.path === '/' }">
-            <Home20 class="icon" />
-            <span>Dashboard</span>
-          </RouterLink>
+          <div class="nav-item" :class="{ active: route.path === '/' }">
+            <RouterLink to="/" class="nav-link">
+              <Home20 class="icon" />
+              <span>Dashboard</span>
+            </RouterLink>
+          </div>
 
-          <RouterLink
-            to="/fcas"
-            class="nav-item"
-            :class="{ active: route.path.startsWith('/fca') }"
-          >
-            <UserProfile20 class="icon" />
-            <span>FCA Profiles</span>
-            <Add20 class="plus-icon" @click.stop="router.push('/fca')" />
-          </RouterLink>
+          <div class="nav-item" :class="{ active: route.path.startsWith('/fca') }">
+            <RouterLink to="/fcas" class="nav-link">
+              <UserProfile20 class="icon" />
+              <span>FCA Profiles</span>
+            </RouterLink>
+            <Add20 class="plus-icon" @click="router.push('/fca')" />
+          </div>
 
-          <RouterLink
-            to="/documents"
-            class="nav-item"
-            :class="{ active: route.path === '/documents' }"
-          >
-            <Document20 class="icon" />
-            <span>Documents</span>
-            <Add20 class="plus-icon" @click.stop="router.push('/generate')" />
-          </RouterLink>
+          <div class="nav-item" :class="{ active: route.path === '/documents' }">
+            <RouterLink to="/documents" class="nav-link">
+              <Document20 class="icon" />
+              <span>Documents</span>
+            </RouterLink>
+            <Add20 class="plus-icon" @click="router.push('/generate')" />
+          </div>
 
-          <RouterLink
-            to="/settings"
-            class="nav-item"
-            :class="{ active: route.path.startsWith('/settings') }"
-          >
-            <Settings20 class="icon" />
-            <span>Settings</span>
-          </RouterLink>
+          <div class="nav-item" :class="{ active: route.path.startsWith('/settings') }">
+            <RouterLink to="/settings" class="nav-link">
+              <Settings20 class="icon" />
+              <span>Settings</span>
+            </RouterLink>
+          </div>
         </nav>
       </div>
 
@@ -168,13 +164,22 @@ function logout() {
 .nav-item {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 0.75rem;
   padding: 0.75rem 1rem;
-  text-decoration: none;
   color: #333;
   position: relative;
   transition: background 0.2s;
   font-size: 0.95rem;
+}
+
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  text-decoration: none;
+  color: inherit;
+  flex-grow: 1;
 }
 
 .nav-item:hover {
