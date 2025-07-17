@@ -204,7 +204,7 @@ const fetchDocument = async () => {
   loading.value = true
   const token = localStorage.getItem('token')
   const id = route.params.id
-  const res = await fetch(`http://localhost:3000/document/${id}`, {
+  const res = await fetch(`https://api-abealcala.duckdns.org/document/${id}`, {
     headers: { Authorization: `Bearer ${token}` },
   })
   const data = await res.json()
@@ -279,11 +279,14 @@ const submitDocument = async () => {
     //   fd.append('file', documentData.value.file)
     // }
 
-    const response = await fetch(`http://localhost:3000/document/${documentData.value.id}`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-      body: fd,
-    })
+    const response = await fetch(
+      `https://api-abealcala.duckdns.org/document/${documentData.value.id}`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      },
+    )
 
     if (!response.ok) {
       const errorText = await response.text()

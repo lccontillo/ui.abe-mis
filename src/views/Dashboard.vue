@@ -10,7 +10,7 @@ const logs = ref([])
 const router = useRouter()
 
 const fetchStats = async () => {
-  const res = await fetch('http://localhost:3000/dashboard', {
+  const res = await fetch('https://api-abealcala.duckdns.org/dashboard', {
     headers: { Authorization: `Bearer ${token}` },
   })
   stats.value = await res.json()
@@ -18,7 +18,7 @@ const fetchStats = async () => {
 
 const fetchRecentLogs = async () => {
   const params = new URLSearchParams({ page: 1, limit: 10, sort: 'created_at', order: 'desc' })
-  const res = await fetch(`http://localhost:3000/audit_logs?${params}`, {
+  const res = await fetch(`https://api-abealcala.duckdns.org/audit_logs?${params}`, {
     headers: { Authorization: `Bearer ${token}` },
   })
   const data = await res.json()

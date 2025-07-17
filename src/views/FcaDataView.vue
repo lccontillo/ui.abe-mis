@@ -178,7 +178,7 @@ function formatDate(dateStr) {
 
 async function fetchFca() {
   loading.value = true
-  const res = await fetch(`http://localhost:3000/fca/${fcaId}`, {
+  const res = await fetch(`https://api-abealcala.duckdns.org/fca/${fcaId}`, {
     headers: { Authorization: `Bearer ${token}` },
   })
   Object.assign(fca, await res.json())
@@ -213,7 +213,7 @@ async function fetchDocuments() {
   params.append('page', page.value)
   params.append('limit', limit.value)
   console.log('Params:', params.toString())
-  const res = await fetch(`http://localhost:3000/generated_documents?${params}`, {
+  const res = await fetch(`https://api-abealcala.duckdns.org/generated_documents?${params}`, {
     headers: { Authorization: `Bearer ${token}` },
   })
 

@@ -122,7 +122,7 @@ async function deleteFca(id) {
   if (!confirm('Are you sure you want to delete this FCA?')) return
 
   try {
-    const res = await fetch(`http://localhost:3000/fcas/${id}`, {
+    const res = await fetch(`https://api-abealcala.duckdns.org/fcas/${id}`, {
       method: 'DELETE',
       headers: {
         Authorization: `Bearer ${token}`,
@@ -152,7 +152,7 @@ async function fetchFcas() {
   params.append('limit', pagination.value.limit)
 
   try {
-    const res = await fetch(`http://localhost:3000/fcas?${params}`, {
+    const res = await fetch(`https://api-abealcala.duckdns.org/fcas?${params}`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },

@@ -246,10 +246,10 @@ function addBod() {
 
 async function submitForm() {
   try {
-    let url = 'http://localhost:3000/add_fca'
+    let url = 'https://api-abealcala.duckdns.org/add_fca'
     let method = 'POST'
     if (props.editMode && props.initialData?.general?.id) {
-      url = `http://localhost:3000/update_fca/${props.initialData.general.id}`
+      url = `https://api-abealcala.duckdns.org/update_fca/${props.initialData.general.id}`
       method = 'PUT'
     }
     const res = await fetch(url, {

@@ -201,7 +201,7 @@ async function deleteDocument(id) {
   if (!confirm('Delete this document?')) return
 
   try {
-    const res = await fetch(`http://localhost:3000/generated_document/${id}`, {
+    const res = await fetch(`https://api-abealcala.duckdns.org/generated_document/${id}`, {
       method: 'DELETE',
       headers: {
         Authorization: `Bearer ${token}`,
@@ -231,7 +231,7 @@ async function fetchDocuments() {
   params.append('page', page.value)
   params.append('limit', limit.value)
 
-  const res = await fetch(`http://localhost:3000/generated_documents?${params}`, {
+  const res = await fetch(`https://api-abealcala.duckdns.org/generated_documents?${params}`, {
     headers: { Authorization: `Bearer ${token}` },
   })
   const data = await res.json()
@@ -240,7 +240,7 @@ async function fetchDocuments() {
 }
 
 const fetchDocs = async () => {
-  const res = await fetch(`http://localhost:3000/documents`, {
+  const res = await fetch(`https://api-abealcala.duckdns.org/documents`, {
     headers: { Authorization: `Bearer ${token}` },
   })
   const data = await res.json()
@@ -248,7 +248,7 @@ const fetchDocs = async () => {
 }
 const fetchFcas = async () => {
   try {
-    const res = await fetch('http://localhost:3000/fcas', {
+    const res = await fetch('https://api-abealcala.duckdns.org/fcas', {
       headers: { Authorization: `Bearer ${token}` },
     })
     const data = await res.json()
@@ -260,7 +260,7 @@ const fetchFcas = async () => {
 
 const fetchGroups = async () => {
   try {
-    const res = await fetch('http://localhost:3000/groups', {
+    const res = await fetch('https://api-abealcala.duckdns.org/groups', {
       headers: { Authorization: `Bearer ${token}` },
     })
     const data = await res.json()
@@ -273,7 +273,7 @@ const fetchGroups = async () => {
 
 const fetchUsers = async () => {
   try {
-    const res = await fetch('http://localhost:3000/users', {
+    const res = await fetch('https://api-abealcala.duckdns.org/users', {
       headers: { Authorization: `Bearer ${token}` },
     })
     const data = await res.json()
