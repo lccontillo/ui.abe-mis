@@ -44,6 +44,7 @@ import PasswordField from '@/components/PasswordField.vue'
 import Toast from '@/components/Toast.vue'
 import DonutLoader from '@/components/DonutLoader.vue'
 const { proxy } = getCurrentInstance()
+import { useUserStore } from '@/stores/user'
 
 const username = ref('')
 const password = ref('')
@@ -63,8 +64,14 @@ async function login() {
     })
 
     if (!res.ok) throw new Error('Invalid username or password')
+
     const data = await res.json()
     localStorage.setItem('token', data.token)
+
+    // ✅ Call Pinia store to fetch user info
+    const userStore = useUserStore()
+    await userStore.fetchMe()
+
     router.push('/')
   } catch (err) {
     proxy.$toast({ message: err.message, type: 'error' })

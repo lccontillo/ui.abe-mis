@@ -2,6 +2,9 @@
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter, RouterLink, RouterView } from 'vue-router'
 import { Home20, Document20, Settings20, Logout20, UserProfile20, Add20 } from '@carbon/icons-vue'
+import { useUserStore } from '@/stores/user'
+
+const userStore = useUserStore()
 
 const router = useRouter()
 const route = useRoute()
@@ -25,6 +28,8 @@ onMounted(async () => {
 
 function logout() {
   localStorage.removeItem('token')
+  userStore.clearUser()
+
   router.push('/login')
 }
 </script>
@@ -44,8 +49,8 @@ function logout() {
           </div>
           <div class="header-text">
             <div class="project-name">ABE Alcala MIS</div>
-            <div class="user-info" v-if="user">
-              <span class="user-name">{{ user.username }}</span>
+            <div class="user-info" v-if="userStore.user">
+              <span class="user-name">{{ userStore.user.username }}</span>
             </div>
           </div>
         </div>

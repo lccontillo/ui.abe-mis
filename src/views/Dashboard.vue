@@ -3,6 +3,8 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Home20, Add20, ArrowRight20 } from '@carbon/icons-vue'
 import TitleBar from '@/components/TitleBar.vue'
+import { useUserStore } from '@/stores/user'
+const userStore = useUserStore()
 
 const token = localStorage.getItem('token')
 const stats = ref({})
@@ -26,6 +28,7 @@ const fetchRecentLogs = async () => {
 }
 
 onMounted(() => {
+  userStore.fetchMe()
   fetchStats()
   fetchRecentLogs()
 })

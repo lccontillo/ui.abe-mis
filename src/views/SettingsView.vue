@@ -4,12 +4,23 @@
 
     <div class="tabs">
       <RouterLink to="/settings" class="tab-btn" exact-active-class="active">Account</RouterLink>
-      <RouterLink to="/settings/templates" class="tab-btn" exact-active-class="active"
-        >Templates</RouterLink
+      <RouterLink
+        v-if="userStore.user?.is_admin"
+        to="/settings/templates"
+        class="tab-btn"
+        exact-active-class="active"
       >
-      <RouterLink to="/settings/users" class="tab-btn" exact-active-class="active"
-        >Users</RouterLink
+        Templates
+      </RouterLink>
+
+      <RouterLink
+        v-if="userStore.user?.is_admin"
+        to="/settings/users"
+        class="tab-btn"
+        exact-active-class="active"
       >
+        Users
+      </RouterLink>
       <RouterLink to="/settings/logs" class="tab-btn" exact-active-class="active"
         >Activity Log</RouterLink
       >
@@ -22,8 +33,32 @@
 </template>
 
 <script setup>
+import { ref, onMounted } from 'vue'
 import TitleBar from '@/components/TitleBar.vue'
 import { Settings20 } from '@carbon/icons-vue'
+import { useUserStore } from '@/stores/user'
+const userStore = useUserStore()
+// const user = ref(null)
+
+// onMounted(async () => {
+//   const token = localStorage.getItem('token')
+//   if (!token) return
+
+//   try {
+//     const res = await fetch('https://api-abealcala.duckdns.org/me', {
+//       headers: {
+//         Authorization: `Bearer ${token}`,
+//         'Content-Type': 'application/json',
+//       },
+//     })
+//     const data = await res.json()
+//     if (data.code === 200) {
+//       user.value = data.user
+//     }
+//   } catch (err) {
+//     console.error('Failed to fetch user:', err)
+//   }
+// })
 </script>
 
 <style scoped>
