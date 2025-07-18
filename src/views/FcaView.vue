@@ -10,12 +10,12 @@
         <option value="Cooperative">Cooperative</option>
         <option value="Association">Association</option>
       </select>
-      <select v-model="filters.major_commodity">
+      <!-- <select v-model="filters.major_commodity">
         <option value="">All Commodities</option>
         <option value="Rice">Rice</option>
         <option value="Corn">Corn</option>
         <option value="Peanuts">Peanuts</option>
-      </select>
+      </select> -->
       <button @click="resetFilters">Reset</button>
       <button @click="fetchFcas">Apply</button>
     </div>
@@ -25,6 +25,11 @@
       <template #actions="{ row }">
         <View20 title="View" class="action-icon" @click="viewFca(row.id)" />
         <!-- <DocumentExport20 title="Generate" class="action-icon" @click="generateDocs(row.id)" /> -->
+        <Launch20
+          title="Open Repository"
+          :class="['action-icon', { disabled: !row.repository }]"
+          @click="openLink(row.repository)"
+        />
         <TrashCan20 title="Delete" class="action-icon text-red" @click="deleteFca(row.id)" />
       </template>
     </DataTable>
@@ -57,7 +62,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import TitleBar from '@/components/TitleBar.vue'
 import DataTable from '@/components/DataTable.vue'
-import { Home20, View20, DocumentExport20, TrashCan20 } from '@carbon/icons-vue'
+import { Home20, View20, DocumentExport20, TrashCan20, Launch20 } from '@carbon/icons-vue'
 
 const router = useRouter()
 const token = localStorage.getItem('token')
@@ -82,14 +87,16 @@ const pagination = ref({
 })
 
 const columns = [
-  { label: 'ID', key: 'id' },
+  // { label: 'ID', key: 'id' },
   { label: 'Name', key: 'name', sortable: true },
   { label: 'Acronym', key: 'acronym', sortable: true },
   { label: 'Type', key: 'type', sortable: true },
-  { label: 'Municipality', key: 'municipality' },
-  { label: 'Province', key: 'province' },
+  // { label: 'Municipality', key: 'municipality' },
+  // { label: 'Province', key: 'province' },
   { label: 'Major Commodity', key: 'major_commodity' },
+  { label: 'Chairman', key: 'chairman' },
   { label: 'Members', key: 'total_members' },
+  // { label: 'Repository', key: 'repository' },
 ]
 
 const totalPages = computed(() => Math.ceil(total.value / pagination.value.limit))
@@ -112,6 +119,12 @@ function resetFilters() {
 
 function viewFca(id) {
   router.push(`/fca/${id}`)
+}
+
+function openLink(url) {
+  if (url) {
+    window.open(url, '_blank')
+  }
 }
 
 function generateDocs(id) {
@@ -196,6 +209,11 @@ onMounted(fetchFcas)
 }
 .filters button:hover {
   background-color: #256128;
+}
+
+.action-icon.disabled {
+  opacity: 0.4;
+  pointer-events: none;
 }
 
 .pagination {

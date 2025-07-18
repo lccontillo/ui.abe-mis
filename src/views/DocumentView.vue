@@ -240,7 +240,7 @@ async function fetchDocuments() {
 }
 
 const fetchDocs = async () => {
-  const res = await fetch(`https://api-abealcala.duckdns.org/documents`, {
+  const res = await fetch(`https://api-abealcala.duckdns.org/documents?limit=all`, {
     headers: { Authorization: `Bearer ${token}` },
   })
   const data = await res.json()
@@ -248,7 +248,7 @@ const fetchDocs = async () => {
 }
 const fetchFcas = async () => {
   try {
-    const res = await fetch('https://api-abealcala.duckdns.org/fcas', {
+    const res = await fetch('https://api-abealcala.duckdns.org/fcas?limit=all', {
       headers: { Authorization: `Bearer ${token}` },
     })
     const data = await res.json()

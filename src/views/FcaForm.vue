@@ -35,7 +35,7 @@
         />
         <InputField
           v-model="form.general.street"
-          :field="{ field_label: 'Street', properties: {} }"
+          :field="{ field_label: 'Street / Zone', properties: {} }"
         />
       </div>
       <div class="row">
@@ -53,13 +53,16 @@
         />
       </div>
       <div class="row">
-        <DropdownField
+        <CheckboxField
           v-model="form.general.major_commodity"
           :field="{
             field_label: 'Major Commodity',
-            properties: { options: ['Rice', 'Corn', 'Peanuts'], multiple: false },
+            properties: {
+              options: ['Rice', 'Corn', 'Peanut', 'Tobacco', 'High-value crops'],
+            },
           }"
         />
+        <!-- {{ form.general.major_commodity }} -->
         <InputField
           v-model="form.general.total_members"
           :field="{ field_label: 'Total Members', properties: {} }"
@@ -85,6 +88,12 @@
         <InputField
           v-model="form.organization.website"
           :field="{ field_label: 'Website', properties: {} }"
+        />
+      </div>
+      <div class="row">
+        <InputField
+          v-model="form.organization.repository"
+          :field="{ field_label: 'Google Drive Repository', properties: {} }"
         />
       </div>
     </section>
@@ -132,19 +141,23 @@
     </section>
 
     <div class="submit-section">
-      <button class="submit-btn" type="submit">
-        {{ editMode ? 'Update FCA' : 'Submit FCA' }}
+      <button class="submit-btn" type="submit" :disabled="saving">
+        {{ saving ? 'Saving...' : editMode ? 'Update FCA' : 'Submit FCA' }}
       </button>
     </div>
   </form>
 </template>
 
 <script setup>
-import { reactive, watch, toRefs } from 'vue'
-import { toRaw } from 'vue'
+import { reactive, watch, toRefs, ref, toRaw } from 'vue'
 import InputField from '@/components/InputField.vue'
 import DropdownField from '@/components/DropdownField.vue'
 import DateInputField from '@/components/DateInputField.vue'
+import CheckboxField from '@/components/CheckboxField.vue'
+import { useRouter } from 'vue-router'
+
+const router = useRouter()
+const saving = ref(false)
 
 const props = defineProps({
   initialData: Object,
@@ -167,7 +180,7 @@ const form = reactive({
     municipality: '',
     province: '',
     zip_code: '',
-    major_commodity: '',
+    major_commodity: [],
     total_members: null,
     business_operation: '',
   },
@@ -175,6 +188,7 @@ const form = reactive({
     landline: '',
     email: '',
     website: '',
+    repository: '',
   },
   officers: [
     {
@@ -196,10 +210,18 @@ watch(
   () => props.initialData,
   (val) => {
     if (val) {
-      // Deep clone to avoid reference issues
       const clone = JSON.parse(JSON.stringify(val))
+
+      // Convert major_commodity back to array if it's a string
+      if (typeof clone.general?.major_commodity === 'string') {
+        clone.general.major_commodity = clone.general.major_commodity
+          .split(',')
+          .map((item) => item.trim())
+      }
+
       Object.assign(form.general, clone.general || {})
       Object.assign(form.organization, clone.organization || {})
+
       form.officers.splice(
         0,
         form.officers.length,
@@ -215,6 +237,7 @@ watch(
               },
             ]),
       )
+
       form.bods.splice(
         0,
         form.bods.length,
@@ -230,6 +253,7 @@ watch(
   },
   { immediate: true, deep: true },
 )
+
 function addOfficer() {
   form.officers.push({
     name: '',
@@ -245,21 +269,41 @@ function addBod() {
 }
 
 async function submitForm() {
+  if (saving.value) return // avoid double submission
+
+  if (!form.general.name) {
+    alert('Name is a required field.')
+    saving.value = false
+    return
+  }
+
+  saving.value = true
+
   try {
     let url = 'https://api-abealcala.duckdns.org/add_fca'
     let method = 'POST'
+
     if (props.editMode && props.initialData?.general?.id) {
       url = `https://api-abealcala.duckdns.org/update_fca/${props.initialData.general.id}`
       method = 'PUT'
     }
+
+    // Clone and modify the form data
+    const payload = toRaw(form)
+    payload.general = {
+      ...payload.general,
+      major_commodity: payload.general.major_commodity.join(', '),
+    }
+
     const res = await fetch(url, {
       method,
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify(toRaw(form)),
+      body: JSON.stringify(payload),
     })
+
     const data = await res.json()
     if (res.ok) {
       alert(props.editMode ? 'FCA updated successfully' : 'Form submitted successfully')
@@ -270,6 +314,11 @@ async function submitForm() {
   } catch (error) {
     console.error('Error:', error)
     alert('Submission failed')
+  } finally {
+    saving.value = false
+    if (!props.editMode) {
+      router.push('/fcas') // Redirect to FCA list
+    }
   }
 }
 </script>

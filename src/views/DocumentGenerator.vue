@@ -44,7 +44,7 @@ const groupDropdownRef = ref(null)
 
 // Fetch Data
 const fetchFcas = async () => {
-  const res = await fetch('https://api-abealcala.duckdns.org/fcas', {
+  const res = await fetch('https://api-abealcala.duckdns.org/fcas?limit=all', {
     headers: { Authorization: `Bearer ${token}` },
   })
   const data = await res.json()
@@ -61,7 +61,7 @@ const fetchGroups = async () => {
 const fetchDocuments = async () => {
   if (!selectedGroup.value) return
   const res = await fetch(
-    `https://api-abealcala.duckdns.org/documents?group=${selectedGroup.value.id}`,
+    `https://api-abealcala.duckdns.org/documents?group=${selectedGroup.value.id}&limit=all`,
     {
       headers: { Authorization: `Bearer ${token}` },
     },

@@ -76,7 +76,9 @@
       <input v-model="form.name" placeholder="Document Name" />
       <input type="file" @change="(e) => (form.file = e.target.files[0])" />
       <div class="modal-actions">
-        <button class="green-btn" @click="submitDocument">Save</button>
+        <button class="green-btn" @click="submitDocument" :disabled="saving">
+          {{ saving ? 'Saving...' : 'Save' }}
+        </button>
         <button @click="showDocumentModal = false">Cancel</button>
       </div>
     </Modal>
@@ -93,6 +95,8 @@ import { Document20 } from '@carbon/icons-vue'
 
 const token = localStorage.getItem('token')
 const router = useRouter()
+
+const saving = ref(false)
 
 const groups = ref([])
 const documents = ref([])
@@ -190,6 +194,9 @@ function openDocumentModal(doc = null) {
 }
 
 async function submitDocument() {
+  if (saving.value) return // Prevent double submission
+  saving.value = true
+
   const isEdit = editingDocument.value
   const fd = new FormData()
   fd.append('group_id', form.value.group_id)
@@ -200,14 +207,21 @@ async function submitDocument() {
     ? `https://api-abealcala.duckdns.org/document/${editingDocument.value.id}`
     : 'https://api-abealcala.duckdns.org/document'
 
-  await fetch(url, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
-    body: fd,
-  })
+  try {
+    await fetch(url, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: fd,
+    })
 
-  showDocumentModal.value = false
-  fetchDocuments()
+    showDocumentModal.value = false
+    fetchDocuments()
+  } catch (error) {
+    console.error('Error submitting document:', error)
+    alert('Submission failed')
+  } finally {
+    saving.value = false
+  }
 }
 
 async function deleteDocument(doc) {

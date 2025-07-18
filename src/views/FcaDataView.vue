@@ -62,6 +62,9 @@
             <div class="field"><strong>Landline:</strong> {{ fca.organization.landline }}</div>
             <div class="field"><strong>Email:</strong> {{ fca.organization.email }}</div>
             <div class="field"><strong>Website:</strong> {{ fca.organization.website }}</div>
+            <div class="field">
+              <strong>Google Drive Repository:</strong> {{ fca.organization.repository }}
+            </div>
           </div>
         </section>
 
