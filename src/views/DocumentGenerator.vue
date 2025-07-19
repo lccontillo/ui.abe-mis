@@ -397,7 +397,7 @@ onMounted(async () => {
         :placeholder="'Search FCA...'"
         clearable
       />
-      <p v-if="selectedFca" class="selected">Selected: {{ selectedFca.name }}</p>
+      <!-- <p v-if="selectedFca" class="selected">Selected: {{ selectedFca.name }}</p> -->
     </div>
 
     <!-- Group Selection -->
@@ -424,8 +424,8 @@ onMounted(async () => {
         clearable
       />
 
-      {{ searchGroup }}
-      <p v-if="selectedGroup" class="selected">Selected: {{ selectedGroup.name }}</p>
+      <!-- {{ searchGroup }}
+      <p v-if="selectedGroup" class="selected">Selected: {{ selectedGroup.name }}</p> -->
     </div>
 
     <!-- Documents -->
