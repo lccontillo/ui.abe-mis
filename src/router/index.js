@@ -14,6 +14,7 @@ import FcaDataView from '@/views/FcaDataView.vue'
 import Dashboard from '@/views/Dashboard.vue'
 import SettingsView from '@/views/SettingsView.vue'
 import AccountSettings from '@/views/AccountSettings.vue'
+import GISToolsView from '@/views/GISToolsView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -67,6 +68,11 @@ const router = createRouter({
       path: '/settings/document/:id',
       name: 'document-schema',
       component: DocumentSchema,
+    },
+    {
+      path: '/gis-tools',
+      name: 'gis-tools',
+      component: GISToolsView,
     },
     {
       path: '/settings',

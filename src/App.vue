@@ -1,7 +1,15 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter, RouterLink, RouterView } from 'vue-router'
-import { Home20, Document20, Settings20, Logout20, UserProfile20, Add20 } from '@carbon/icons-vue'
+import {
+  Home20,
+  Document20,
+  Settings20,
+  Logout20,
+  UserProfile20,
+  Add20,
+  Earth20,
+} from '@carbon/icons-vue'
 import { useUserStore } from '@/stores/user'
 
 const userStore = useUserStore()
@@ -77,6 +85,13 @@ function logout() {
               <span>Documents</span>
             </RouterLink>
             <Add20 class="plus-icon" @click="router.push('/generate')" />
+          </div>
+
+          <div class="nav-item" :class="{ active: route.path.startsWith('/gis-tools') }">
+            <RouterLink to="/gis-tools" class="nav-link">
+              <Earth20 class="icon" />
+              <span>GIS Tools</span>
+            </RouterLink>
           </div>
 
           <div class="nav-item" :class="{ active: route.path.startsWith('/settings') }">

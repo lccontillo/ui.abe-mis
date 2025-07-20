@@ -7,6 +7,8 @@ import DonutLoader from './components/DonutLoader.vue' // adjust path as needed
 import ToastPlugin from '@/plugins/toast.js'
 import VueSelect from 'vue-select'
 
+window.endpoint = import.meta.env.VITE_API_ENDPOINT
+
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 
