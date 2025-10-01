@@ -251,6 +251,7 @@ async function downloadDocument(doc) {
     return
   }
   try {
+    console.log(selectedFca.value, doc)
     const res = await fetch('https://api-abealcala.duckdns.org/download_document', {
       method: 'POST',
       headers: {
@@ -269,7 +270,7 @@ async function downloadDocument(doc) {
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `${doc.name || 'document'}.docx`
+    a.download = `${selectedFca.value.acronym}_${doc.name || 'document'}.docx`
     document.body.appendChild(a)
     a.click()
     a.remove()
