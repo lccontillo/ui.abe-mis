@@ -1,10 +1,10 @@
 <template>
-  <div class="container">
+  <div class="container app-page">
     <h2>Dynamic Schema Builder</h2>
     <!-- {{ documentData }} -->
     <div v-if="loading">Loading...</div>
     <div v-else>
-      <div v-for="(field, index) in fields" :key="index" class="field-config">
+      <div v-for="(field, index) in fields" :key="index" class="field-config panel">
         <div>
           <label>Field Type:</label>
           <select v-model="field.field_type">

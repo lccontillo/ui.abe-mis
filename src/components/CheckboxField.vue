@@ -41,13 +41,7 @@ function toggleOption(option) {
 }
 
 input[type='checkbox'] {
-  accent-color: #2e7d32; /* Your green */
-}
-
-.field-label {
-  font-weight: 600;
-  font-size: 0.95rem;
-  color: #2e7d32;
+  accent-color: var(--brand-600);
 }
 
 .checkbox-group {
@@ -60,6 +54,8 @@ input[type='checkbox'] {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  color: var(--text);
   font-size: 0.95rem;
+  line-height: 1.35;
 }
 </style>

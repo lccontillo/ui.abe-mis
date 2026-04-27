@@ -35,7 +35,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="dashboard">
+  <div class="dashboard app-page">
     <TitleBar title="Dashboard" />
 
     <div v-if="!stats.total_fcas && !logs.length" class="loader-center">
@@ -45,16 +45,16 @@ onMounted(() => {
     <div v-else>
       <!-- Action + Stats -->
       <div class="stat-row">
-        <button class="btn btn-green" @click="router.push('/fca')">
+        <button class="btn btn-primary" @click="router.push('/fca')">
           <Add20 class="btn-icon" />
           New FCA
         </button>
-        <button class="btn btn-blue" @click="router.push('/generate')">
+        <button class="btn btn-secondary" @click="router.push('/generate')">
           <Add20 class="btn-icon" />
           Generate Document
         </button>
 
-        <div class="stat-card clickable" @click="router.push('/fcas')">
+        <div class="stat-card panel clickable" @click="router.push('/fcas')">
           <div class="stat-label">Total FCAs</div>
           <div class="stat-value">
             {{ stats.total_fcas }}
@@ -62,7 +62,7 @@ onMounted(() => {
           </div>
         </div>
 
-        <div class="stat-card clickable" @click="router.push('/documents')">
+        <div class="stat-card panel clickable" @click="router.push('/documents')">
           <div class="stat-label">Documents Generated</div>
           <div class="stat-value">
             {{ stats.total_generated_documents }}
@@ -72,40 +72,37 @@ onMounted(() => {
       </div>
 
       <!-- Recent Logs -->
-      <div class="card">
+      <div class="card panel">
         <div class="card-header">
           <h2>Recent Activity</h2>
           <button class="view-all" @click="router.push('/settings/logs')">View All</button>
         </div>
-        <table class="log-table">
-          <thead>
-            <tr>
-              <th>Action</th>
-              <th>Metadata</th>
-              <th>User</th>
-              <th>Date</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="log in logs" :key="log.id">
-              <td>{{ log.action_id }}</td>
-              <td>{{ log.metadata }}</td>
-              <td>{{ log.username }}</td>
-              <td>{{ new Date(log.created_at).toLocaleString() }}</td>
-            </tr>
-          </tbody>
-        </table>
+        <div class="table-wrap">
+          <table class="log-table table">
+            <thead>
+              <tr>
+                <th>Action</th>
+                <th>Metadata</th>
+                <th>User</th>
+                <th>Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="log in logs" :key="log.id">
+                <td>{{ log.action_id }}</td>
+                <td>{{ log.metadata }}</td>
+                <td>{{ log.username }}</td>
+                <td>{{ new Date(log.created_at).toLocaleString() }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-.dashboard {
-  padding: 1.5rem;
-  font-family: 'Segoe UI', Roboto, sans-serif;
-}
-
 .loader-center {
   display: flex;
   justify-content: center;
@@ -113,40 +110,14 @@ onMounted(() => {
 }
 
 .stat-row {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: 1rem;
   margin-bottom: 2rem;
 }
 
 .btn {
-  flex: 1 1 200px;
-  padding: 0.5rem 1rem;
-  font-weight: 500;
-  font-size: 0.9rem;
-  border: none;
-  border-radius: 6px;
-  color: white;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.btn-green {
-  background-color: #2e7d32;
-}
-
-.btn-green:hover {
-  background-color: #256128;
-}
-
-.btn-blue {
-  background-color: #1976d2;
-}
-
-.btn-blue:hover {
-  background-color: #125a9e;
+  min-width: 0;
 }
 
 .btn-icon {
@@ -155,27 +126,26 @@ onMounted(() => {
 }
 
 .stat-card {
-  flex: 1 1 200px;
-  background: white;
-  border-radius: 6px;
   padding: 1rem;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
-  transition: box-shadow 0.2s ease;
+  transition:
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
 }
 
 .stat-card:hover {
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
 }
 
 .stat-label {
-  color: #666;
+  color: var(--text-muted);
   font-size: 0.85rem;
 }
 
 .stat-value {
   font-size: 1.5rem;
-  font-weight: bold;
-  color: #2e7d32;
+  font-weight: 850;
+  color: var(--heading);
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -184,7 +154,7 @@ onMounted(() => {
 .arrow-icon {
   width: 20px;
   height: 20px;
-  color: #999;
+  color: var(--brand-600);
 }
 
 .clickable {
@@ -192,10 +162,7 @@ onMounted(() => {
 }
 
 .card {
-  background: white;
-  border-radius: 6px;
   padding: 1rem;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
 }
 
 .card-header {
@@ -207,16 +174,17 @@ onMounted(() => {
 
 .card-header h2 {
   font-size: 1.1rem;
-  font-weight: 600;
-  color: #2e7d32;
+  font-weight: 800;
+  color: var(--heading);
 }
 
 .view-all {
   background: none;
   border: none;
   font-size: 0.9rem;
-  color: #1976d2;
+  color: var(--accent-blue);
   cursor: pointer;
+  font-weight: 700;
 }
 
 .view-all:hover {
@@ -224,26 +192,6 @@ onMounted(() => {
 }
 
 .log-table {
-  width: 100%;
-  border-collapse: collapse;
   font-size: 0.88rem;
-}
-
-.log-table thead th {
-  background-color: #f0f4f0;
-  padding: 0.5rem;
-  text-align: left;
-  color: #444;
-  font-weight: 600;
-}
-
-.log-table tbody td {
-  padding: 0.5rem;
-  color: #333;
-  border-top: 1px solid #eee;
-}
-
-.log-table tbody tr:hover {
-  background-color: #f8fdf8;
 }
 </style>

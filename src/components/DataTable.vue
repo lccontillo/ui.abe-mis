@@ -13,10 +13,15 @@
         </tr>
       </thead>
       <tbody>
-        <tr v-for="row in data" :key="row.id">
+        <tr v-for="row in data" :key="row.id" class="data-row" @dblclick="$emit('view', row)">
           <td v-for="col in columns" :key="col.key">{{ row[col.key] }}</td>
           <td v-if="$slots.actions">
             <slot name="actions" :row="row" />
+          </td>
+        </tr>
+        <tr v-if="!data?.length">
+          <td :colspan="columns.length + ($slots.actions ? 1 : 0)" class="empty-cell">
+            No records found.
           </td>
         </tr>
       </tbody>
@@ -25,6 +30,8 @@
 </template>
 
 <script setup>
+defineEmits(['view'])
+
 defineProps({
   data: Array,
   columns: Array,
@@ -37,24 +44,25 @@ defineProps({
 .data-table table {
   width: 100%;
   border-collapse: collapse;
-  background: #fff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-  font-family: 'Segoe UI', sans-serif;
   font-size: 0.9rem;
 }
-.data-table th,
-.data-table td {
-  padding: 0.65rem 0.75rem;
-  border-bottom: 1px solid #eee;
-}
+
+.data-table th[sortable],
 .data-table th {
-  background: #f0f4f0;
-  text-align: left;
   cursor: pointer;
   user-select: none;
-  color: #333;
 }
-.data-table tr:hover {
-  background: #f9fdf9;
+
+.empty-cell {
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.data-row {
+  cursor: default;
+}
+
+.data-row:hover {
+  cursor: pointer;
 }
 </style>

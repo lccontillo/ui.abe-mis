@@ -4,6 +4,7 @@ import fuzzysort from 'fuzzysort'
 import { computePosition, autoUpdate, offset, flip, shift } from '@floating-ui/dom'
 import { downloadZip } from 'client-zip'
 import { useRoute } from 'vue-router'
+import { useHashModal } from '@/composables/useHashModal'
 const route = useRoute()
 
 const isViewMode = computed(() => route.query.document_id && route.query.fca && route.query.group)
@@ -31,6 +32,14 @@ const showModal = ref(false)
 const selectedDocForModal = ref(null)
 const formData = reactive({})
 const doc_ids = ref([1, 2, 3, 4, 5])
+const { openHashModal, closeHashModal } = useHashModal({
+  'fill-document': (isOpen) => {
+    if (!isOpen) {
+      showModal.value = false
+      selectedDocForModal.value = null
+    }
+  },
+})
 
 // Dropdown states
 const isFcaDropdownOpen = ref(false)
@@ -177,9 +186,11 @@ async function openFormModal(doc) {
   }
 
   showModal.value = true
+  openHashModal('fill-document')
 }
 
 function closeModal() {
+  closeHashModal('fill-document')
   showModal.value = false
   selectedDocForModal.value = null
 }
@@ -378,7 +389,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="form-wrapper">
+  <div class="form-wrapper app-page">
     <!-- FCA Selection -->
     <h1 class="form-title">Generate Documents</h1>
     <div class="form-group">
@@ -438,8 +449,17 @@ onMounted(async () => {
           {{ doc.name }}
         </label>
         <div class="document-actions">
-          <button class="btn" v-if="doc.schema" @click="openFormModal(doc)">Fill</button>
-          <button class="btn" @click="downloadDocument(doc)">Download</button>
+          <button
+            class="btn btn-secondary"
+            v-if="doc.schema"
+            type="button"
+            @click="openFormModal(doc)"
+          >
+            Fill
+          </button>
+          <button class="btn btn-primary" type="button" @click="downloadDocument(doc)">
+            Download
+          </button>
         </div>
       </div>
     </div>
@@ -447,24 +467,26 @@ onMounted(async () => {
     <!-- <button class="btn full-width" @click="handleGenerateClick">Download Zip</button> -->
 
     <!-- Right Side Modal -->
-    <div v-if="showModal" class="side-modal">
-      <div class="side-modal-content">
-        <h1>{{ selectedDocForModal?.name }}</h1>
-        <form @submit.prevent="submitForm">
-          <div v-for="(field, idx) in selectedDocForModal.schema" :key="idx" class="form-group">
-            <component
-              :is="getFieldComponent(field)"
-              :field="field"
-              v-model="formData[camel(field.field_label)]"
-            />
-          </div>
-          <div class="modal-buttons">
-            <button type="submit" class="btn">Submit</button>
-            <button type="button" class="btn secondary" @click="closeModal">Cancel</button>
-          </div>
-        </form>
+    <Transition name="modal-fade">
+      <div v-if="showModal" class="side-modal">
+        <div class="side-modal-content modal-content">
+          <h1>{{ selectedDocForModal?.name }}</h1>
+          <form @submit.prevent="submitForm">
+            <div v-for="(field, idx) in selectedDocForModal.schema" :key="idx" class="form-group">
+              <component
+                :is="getFieldComponent(field)"
+                :field="field"
+                v-model="formData[camel(field.field_label)]"
+              />
+            </div>
+            <div class="modal-buttons modal-actions">
+              <button type="submit" class="btn btn-primary">Submit</button>
+              <button type="button" class="btn btn-secondary" @click="closeModal">Cancel</button>
+            </div>
+          </form>
+        </div>
       </div>
-    </div>
+    </Transition>
   </div>
 </template>
 
@@ -529,33 +551,39 @@ onMounted(async () => {
 
 .side-modal {
   position: fixed;
-  top: 0;
-  right: 0;
-  width: 100%;
-  max-width: 750px;
+  inset: 0 0 0 auto;
+  width: min(100vw, 750px);
   height: 100vh;
-  background: rgba(0, 0, 0, 0.15);
+  height: 100dvh;
+  background: transparent;
   z-index: 2000;
   display: flex;
   justify-content: flex-end;
 }
 
 .side-modal-content {
-  background: #fff;
+  background: var(--bg-elevated);
   width: 100%;
   max-width: 750px;
   height: 100vh;
-  padding: 2rem;
+  height: 100dvh;
+  max-height: none;
+  padding: 2rem 2rem 0;
   overflow-y: auto;
-  box-shadow: -2px 0 8px rgba(0, 0, 0, 0.08);
+  box-shadow: -2px 0 18px rgba(0, 0, 0, 0.22);
   position: relative;
+  border-radius: 0;
 }
 
 .modal-buttons {
   display: flex;
   gap: 1rem;
+  justify-content: flex-end;
   position: sticky;
   bottom: 0;
-  background-color: #fff;
+  margin: 1rem -2rem 0;
+  padding: 1rem 2rem;
+  background: var(--bg-elevated);
+  border-top: 1px solid var(--border);
 }
 </style>

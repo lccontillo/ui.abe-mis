@@ -1,24 +1,30 @@
 <template>
-  <div>
-    <button @click="showModal = true">Preview Form</button>
+  <div class="preview-page app-page">
+    <button class="btn btn-primary" type="button" @click="openPreviewModal">Preview Form</button>
 
-    <div v-if="showModal" class="modal">
-      <div class="modal-content">
-        <h3>Dynamic Form</h3>
-        <form @submit.prevent="submitForm">
-          <div v-for="(field, idx) in schema" :key="idx" class="field-block">
-            <component
-              :is="getFieldComponent(field)"
-              :field="field"
-              v-model="formData[camel(field.field_label)]"
-            />
-          </div>
-          <button type="submit">Submit</button>
-        </form>
-        <button @click="showModal = false">Close</button>
+    <Transition name="modal-fade">
+      <div v-if="showModal" class="modal-overlay">
+        <div class="modal-content">
+          <h3>Dynamic Form</h3>
+          <form @submit.prevent="submitForm">
+            <div v-for="(field, idx) in schema" :key="idx" class="field-block">
+              <component
+                :is="getFieldComponent(field)"
+                :field="field"
+                v-model="formData[camel(field.field_label)]"
+              />
+            </div>
+            <div class="modal-actions">
+              <button class="btn btn-primary" type="submit">Submit</button>
+              <button class="btn btn-secondary" type="button" @click="closePreviewModal">
+                Close
+              </button>
+            </div>
+          </form>
+        </div>
+        <pre>{{ JSON.stringify(formData, null, 2) }}</pre>
       </div>
-      <pre>{{ JSON.stringify(formData, null, 2) }}</pre>
-    </div>
+    </Transition>
   </div>
 </template>
 
@@ -30,8 +36,24 @@ import DropdownField from '@/components/DropdownField.vue'
 import RadioField from '@/components/RadioField.vue'
 import CheckboxField from '@/components/CheckboxField.vue'
 import TableField from '@/components/TableField.vue'
+import { useHashModal } from '@/composables/useHashModal'
 
 const showModal = ref(false)
+const { openHashModal, closeHashModal } = useHashModal({
+  'preview-form': (isOpen) => {
+    showModal.value = isOpen
+  },
+})
+
+function openPreviewModal() {
+  showModal.value = true
+  openHashModal('preview-form')
+}
+
+function closePreviewModal() {
+  closeHashModal('preview-form')
+}
+
 const camel = (str) =>
   str
     .replace(/[^a-zA-Z0-9 ]/g, '') // remove special characters
@@ -155,22 +177,6 @@ function submitForm() {
 </script>
 
 <style scoped>
-.modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.5);
-}
-.modal-content {
-  background: white;
-  margin: 5% auto;
-  padding: 20px;
-  width: 90%;
-  max-width: 700px;
-  overflow-y: auto;
-}
 .field-block {
   margin-bottom: 16px;
 }

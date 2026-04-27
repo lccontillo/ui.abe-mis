@@ -1,6 +1,12 @@
 <template>
   <div class="title-bar">
-    <h1 class="title-text">{{ title }}</h1>
+    <div class="title-main">
+      <component :is="icon" v-if="icon" class="title-icon" />
+      <h1 class="title-text">{{ title }}</h1>
+    </div>
+    <div v-if="$slots.actions" class="title-actions">
+      <slot name="actions" />
+    </div>
   </div>
 </template>
 
@@ -14,21 +20,30 @@ defineProps({
 <style scoped>
 .title-bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: space-between;
   gap: 0.5rem;
   margin-bottom: 1.25rem;
 }
 
+.title-main,
+.title-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .title-icon {
-  color: #2e7d32;
+  color: var(--brand-600);
   width: 24px;
   height: 24px;
 }
 
 .title-text {
   font-size: 1.5rem;
-  font-weight: 600;
-  color: #2e7d32;
-  font-family: 'Segoe UI', sans-serif;
+  font-weight: 800;
+  color: var(--heading);
+  margin: 0;
 }
 </style>

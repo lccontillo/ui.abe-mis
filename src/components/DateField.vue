@@ -1,7 +1,12 @@
 <template>
   <div class="date-field">
     <label class="field-label">{{ field.field_label }}</label>
-    <input class="date-input" :value="formattedValue" type="date" @input="onDateChange" />
+    <input
+      class="date-input field-control"
+      :value="formattedValue"
+      type="date"
+      @input="onDateChange"
+    />
   </div>
 </template>
 
@@ -59,25 +64,6 @@ function getCardinal(n) {
   flex-direction: column;
   flex: 1;
   min-width: 200px;
-}
-
-.field-label {
-  font-weight: 600;
-  margin-bottom: 0.3rem;
-  color: #2e7d32;
-}
-
-.date-input {
-  padding: 0.5rem;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  font-size: 1rem;
-  transition: border-color 0.2s;
-}
-
-.date-input:focus {
-  outline: none;
-  border-color: #2e7d32;
-  box-shadow: 0 0 0 2px #cce4cd;
+  gap: 0.4rem;
 }
 </style>

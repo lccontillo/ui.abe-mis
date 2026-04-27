@@ -1,52 +1,69 @@
-/* color palette from <https://github.com/vuejs/theme> */
 :root {
-  --vt-c-white: #ffffff;
-  --vt-c-white-soft: #f8f8f8;
-  --vt-c-white-mute: #f2f2f2;
+  color-scheme: light dark;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 
-  --vt-c-black: #181818;
-  --vt-c-black-soft: #222222;
-  --vt-c-black-mute: #282828;
+  --brand-50: #edf7ee;
+  --brand-100: #d8eddc;
+  --brand-500: #2f7d38;
+  --brand-600: #276b30;
+  --brand-700: #1f5527;
+  --brand-800: #183f20;
+  --accent-blue: #2563eb;
+  --danger: #c2410c;
+  --danger-strong: #b42318;
+  --warning: #b7791f;
+  --success: #2f7d38;
 
-  --vt-c-indigo: #2c3e50;
-
-  --vt-c-divider-light-1: rgba(60, 60, 60, 0.29);
-  --vt-c-divider-light-2: rgba(60, 60, 60, 0.12);
-  --vt-c-divider-dark-1: rgba(84, 84, 84, 0.65);
-  --vt-c-divider-dark-2: rgba(84, 84, 84, 0.48);
-
-  --vt-c-text-light-1: var(--vt-c-indigo);
-  --vt-c-text-light-2: rgba(60, 60, 60, 0.66);
-  --vt-c-text-dark-1: var(--vt-c-white);
-  --vt-c-text-dark-2: rgba(235, 235, 235, 0.64);
-}
-
-/* semantic color variables for this project */
-:root {
-  --color-background: var(--vt-c-white);
-  --color-background-soft: var(--vt-c-white-soft);
-  --color-background-mute: var(--vt-c-white-mute);
-
-  --color-border: var(--vt-c-divider-light-2);
-  --color-border-hover: var(--vt-c-divider-light-1);
-
-  --color-heading: var(--vt-c-text-light-1);
-  --color-text: var(--vt-c-text-light-1);
-
-  --section-gap: 160px;
+  --bg: #f5f7f4;
+  --bg-elevated: #ffffff;
+  --bg-muted: #eef3ee;
+  --bg-subtle: #f8faf8;
+  --text: #17231a;
+  --text-muted: #5c6a60;
+  --text-soft: #758177;
+  --heading: #102114;
+  --border: #dbe4dc;
+  --border-strong: #c7d5c9;
+  --focus: rgba(47, 125, 56, 0.28);
+  --shadow-sm: 0 1px 2px rgba(16, 33, 20, 0.08);
+  --shadow-md: 0 12px 28px rgba(16, 33, 20, 0.12);
+  --shadow-lg: 0 22px 60px rgba(16, 33, 20, 0.18);
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --sidebar-width: 264px;
+  --sidebar-collapsed-width: 76px;
+  --topbar-height: 64px;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-background: var(--vt-c-black);
-    --color-background-soft: var(--vt-c-black-soft);
-    --color-background-mute: var(--vt-c-black-mute);
+    --brand-50: #16341d;
+    --brand-100: #1d4726;
+    --brand-500: #7ccf85;
+    --brand-600: #5dbb68;
+    --brand-700: #a3e7a9;
+    --brand-800: #d7f8da;
+    --accent-blue: #8db4ff;
+    --danger: #ffb199;
+    --danger-strong: #ff9b8d;
+    --warning: #f6d58a;
+    --success: #7ccf85;
 
-    --color-border: var(--vt-c-divider-dark-2);
-    --color-border-hover: var(--vt-c-divider-dark-1);
-
-    --color-heading: var(--vt-c-text-dark-1);
-    --color-text: var(--vt-c-text-dark-2);
+    --bg: #0f1511;
+    --bg-elevated: #171f19;
+    --bg-muted: #202a22;
+    --bg-subtle: #141b16;
+    --text: #edf5ee;
+    --text-muted: #b9c7bb;
+    --text-soft: #8fa093;
+    --heading: #ffffff;
+    --border: #2d3a30;
+    --border-strong: #405244;
+    --focus: rgba(124, 207, 133, 0.3);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.32);
+    --shadow-md: 0 12px 28px rgba(0, 0, 0, 0.36);
+    --shadow-lg: 0 22px 60px rgba(0, 0, 0, 0.46);
   }
 }
 
@@ -54,33 +71,39 @@
 *::before,
 *::after {
   box-sizing: border-box;
-  margin: 0;
-  font-weight: normal;
+}
+
+html {
+  min-height: 100%;
+  background: var(--bg);
 }
 
 body {
+  min-width: 320px;
   min-height: 100vh;
-  color: var(--color-text);
-  background: var(--color-background);
-  transition:
-    color 0.5s,
-    background-color 0.5s;
-  line-height: 1.6;
-  font-family:
-    Inter,
-    -apple-system,
-    BlinkMacSystemFont,
-    'Segoe UI',
-    Roboto,
-    Oxygen,
-    Ubuntu,
-    Cantarell,
-    'Fira Sans',
-    'Droid Sans',
-    'Helvetica Neue',
-    sans-serif;
+  margin: 0;
+  color: var(--text);
+  background: var(--bg);
+  font-family: var(--font-sans);
   font-size: 15px;
+  line-height: 1.5;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  color: inherit;
+}
+
+img,
+svg {
+  display: block;
 }

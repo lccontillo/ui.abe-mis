@@ -8,8 +8,15 @@
         @input="$emit('update:modelValue', $event.target.value)"
         required
       />
-      <icon-eye v-if="!visible" @click="visible = true" />
-      <icon-eye-off v-else @click="visible = false" />
+      <button
+        class="password-toggle"
+        type="button"
+        :aria-label="visible ? 'Hide password' : 'Show password'"
+        @click="visible = !visible"
+      >
+        <IconEyeOff v-if="visible" />
+        <IconEye v-else />
+      </button>
     </div>
   </div>
 </template>
@@ -31,25 +38,40 @@ const visible = ref(false)
   display: flex;
   flex-direction: column;
 }
-label {
-  font-weight: 600;
-  margin-bottom: 4px;
-}
+
 .password-wrapper {
   display: flex;
   align-items: center;
-  border: 1px solid #ccc;
-  border-radius: 0.375rem;
-  padding-right: 0.5rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease;
 }
+
+.password-wrapper:focus-within {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
 .password-wrapper input {
   flex: 1;
   border: none;
-  padding: 0.5rem;
-  border-radius: 0.375rem 0 0 0.375rem;
+  outline: none;
+  background: transparent;
+  box-shadow: none;
 }
-.password-wrapper svg {
+
+.password-toggle {
+  width: 38px;
+  height: 38px;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
-  fill: #333;
 }
 </style>

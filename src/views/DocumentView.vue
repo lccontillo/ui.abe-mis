@@ -1,5 +1,5 @@
 <template>
-  <div class="container">
+  <div class="container app-page">
     <TitleBar title="Generated Documents" :icon="Document20" />
 
     <!-- Filters -->
@@ -81,7 +81,7 @@
         placeholder="Select User"
       ></v-select>
 
-      <button @click="fetchDocuments">Apply</button>
+      <button class="btn btn-primary" type="button" @click="fetchDocuments">Apply</button>
     </div>
 
     <!-- {{ documents }} -->
@@ -91,6 +91,7 @@
       :columns="columns"
       :sort="{ column: sort, order }"
       :onSort="toggleSort"
+      @view="viewDocument($event.document_id, $event.fca_name, $event.group_name)"
     >
       <template #actions="{ row }">
         <View20

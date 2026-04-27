@@ -52,16 +52,16 @@ const iconColors = {
 }
 
 .toast {
-  background: #fff;
-  border: 1px solid #ddd;
-  color: #222;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text);
   padding: 0.75rem 1rem;
-  border-radius: 0.75rem;
+  border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   gap: 0.75rem;
   min-width: 280px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--shadow-md);
 }
 
 .toast-icon {
@@ -80,7 +80,7 @@ const iconColors = {
   background: none;
   border: none;
   font-size: 1.25rem;
-  color: #666;
+  color: var(--text-muted);
   cursor: pointer;
 }
 </style>

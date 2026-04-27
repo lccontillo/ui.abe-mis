@@ -5,7 +5,7 @@
       :multiple="field.properties.multiple"
       :disabled="field.properties.disabled"
       v-model="model"
-      class="select-control"
+      class="select-control field-control"
     >
       <option v-for="option in field.properties.options" :key="option" :value="option">
         {{ option }}
@@ -38,33 +38,7 @@ const model = computed({
   margin-bottom: 1rem;
 }
 
-.field-label {
-  font-weight: 600;
-  font-size: 0.95rem;
-  color: #2e7d32;
-}
-
 .select-control {
-  padding: 0.5rem 0.75rem;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  font-size: 0.95rem;
-  background-color: #fff;
-  transition:
-    border-color 0.2s,
-    box-shadow 0.2s;
   appearance: none;
-}
-
-.select-control:focus {
-  border-color: #2e7d32;
-  box-shadow: 0 0 0 2px #cce4cd;
-  outline: none;
-}
-
-.select-control:disabled {
-  background-color: #f3f3f3;
-  color: #999;
-  cursor: not-allowed;
 }
 </style>

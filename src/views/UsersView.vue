@@ -1,92 +1,111 @@
 <template>
-  <div>
+  <div class="users-page app-page">
     <h2>Users</h2>
-    <button @click="showCreateModal = true">+ Create User</button>
+    <button class="btn btn-primary" type="button" @click="openCreateModal">+ Create User</button>
 
-    <table border="1" cellpadding="6" cellspacing="0" style="margin-top: 1rem">
-      <thead>
-        <tr>
-          <th>ID</th>
-          <th>Username</th>
-          <th>Name</th>
-          <th>Email</th>
-          <th>Admin</th>
-          <th>Active</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="user in users" :key="user.id">
-          <td>{{ user.id }}</td>
-          <td>{{ user.username }}</td>
-          <td>{{ user.name ?? '-' }}</td>
-          <td>{{ user.email ?? '-' }}</td>
-          <td>{{ user.is_admin ? 'Yes' : 'No' }}</td>
-          <td>{{ user.is_active ? 'Yes' : 'No' }}</td>
-          <td>
-            <button @click="confirmToggle(user)">Toggle Active</button>
-            <button @click="openPasswordModal(user)">Update Password</button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+    <div class="table-wrap users-table">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Username</th>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Admin</th>
+            <th>Active</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="user in users" :key="user.id">
+            <td>{{ user.id }}</td>
+            <td>{{ user.username }}</td>
+            <td>{{ user.name ?? '-' }}</td>
+            <td>{{ user.email ?? '-' }}</td>
+            <td>{{ user.is_admin ? 'Yes' : 'No' }}</td>
+            <td>{{ user.is_active ? 'Yes' : 'No' }}</td>
+            <td>
+              <button class="btn btn-secondary" type="button" @click="confirmToggle(user)">
+                Toggle Active
+              </button>
+              <button class="btn btn-secondary" type="button" @click="openPasswordModal(user)">
+                Update Password
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
 
     <!-- Create User Modal -->
-    <div v-if="showCreateModal" class="modal">
-      <div class="modal-content">
-        <h3>Create User</h3>
-        <form @submit.prevent="createUser">
-          <div><label>Username:</label><input v-model="form.username" required /></div>
-          <div><label>Name:</label><input v-model="form.name" /></div>
-          <div><label>Email:</label><input v-model="form.email" /></div>
-          <div>
-            <label>Password:</label><input type="password" v-model="form.password" required />
-          </div>
-          <div>
-            <label><input type="checkbox" v-model="form.is_admin" /> Is Admin</label>
-          </div>
-          <div style="margin-top: 1rem">
-            <button type="submit">Create</button>
-            <button type="button" @click="showCreateModal = false" style="margin-left: 1rem">
-              Cancel
-            </button>
-          </div>
-        </form>
+    <Transition name="modal-fade">
+      <div v-if="showCreateModal" class="modal">
+        <div class="modal-content">
+          <h3>Create User</h3>
+          <form @submit.prevent="createUser">
+            <div><label>Username:</label><input v-model="form.username" required /></div>
+            <div><label>Name:</label><input v-model="form.name" /></div>
+            <div><label>Email:</label><input v-model="form.email" /></div>
+            <div>
+              <label>Password:</label><input type="password" v-model="form.password" required />
+            </div>
+            <div>
+              <label><input type="checkbox" v-model="form.is_admin" /> Is Admin</label>
+            </div>
+            <div class="modal-actions">
+              <button class="btn btn-primary" type="submit">Create</button>
+              <button class="btn btn-secondary" type="button" @click="closeUserModal">
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
-    </div>
+    </Transition>
 
     <!-- Update Password Modal -->
-    <div v-if="showPasswordModal" class="modal">
-      <div class="modal-content">
-        <h3>Update Password: {{ selectedUser.username }}</h3>
-        <form @submit.prevent="updatePassword">
-          <div>
-            <label>New Password:</label
-            ><input type="password" v-model="passwordForm.new" required />
-          </div>
-          <div>
-            <label>Confirm Password:</label
-            ><input type="password" v-model="passwordForm.confirm" required />
-          </div>
-          <div style="margin-top: 1rem">
-            <button type="submit">Update</button>
-            <button type="button" @click="showPasswordModal = false" style="margin-left: 1rem">
-              Cancel
-            </button>
-          </div>
-        </form>
+    <Transition name="modal-fade">
+      <div v-if="showPasswordModal && selectedUser" class="modal">
+        <div class="modal-content">
+          <h3>Update Password: {{ selectedUser.username }}</h3>
+          <form @submit.prevent="updatePassword">
+            <div>
+              <label>New Password:</label
+              ><input type="password" v-model="passwordForm.new" required />
+            </div>
+            <div>
+              <label>Confirm Password:</label
+              ><input type="password" v-model="passwordForm.confirm" required />
+            </div>
+            <div class="modal-actions">
+              <button class="btn btn-primary" type="submit">Update</button>
+              <button class="btn btn-secondary" type="button" @click="closeUserModal">
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
-    </div>
+    </Transition>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
+import { useHashModal } from '@/composables/useHashModal'
 
 const users = ref([])
 const showCreateModal = ref(false)
 const showPasswordModal = ref(false)
 const selectedUser = ref(null)
+const { openHashModal, closeHashModal } = useHashModal({
+  'create-user': (isOpen) => {
+    showCreateModal.value = isOpen
+  },
+  'update-user-password': (isOpen) => {
+    showPasswordModal.value = isOpen && Boolean(selectedUser.value)
+  },
+})
 
 const token = localStorage.getItem('token')
 
@@ -132,12 +151,24 @@ async function createUser() {
     if (!res.ok) throw new Error('Creation failed')
 
     alert('User created')
-    showCreateModal.value = false
+    closeUserModal()
     resetCreateForm()
     await fetchUsers()
   } catch (err) {
     alert('Create error: ' + err.message)
   }
+}
+
+function openCreateModal() {
+  showCreateModal.value = true
+  openHashModal('create-user')
+}
+
+function closeUserModal() {
+  closeHashModal('create-user')
+  closeHashModal('update-user-password')
+  showCreateModal.value = false
+  showPasswordModal.value = false
 }
 
 function resetCreateForm() {
@@ -175,6 +206,7 @@ function openPasswordModal(user) {
   passwordForm.new = ''
   passwordForm.confirm = ''
   showPasswordModal.value = true
+  openHashModal('update-user-password')
 }
 
 async function updatePassword() {
@@ -197,7 +229,7 @@ async function updatePassword() {
     })
     if (!res.ok) throw new Error('Password update failed')
     alert('Password updated')
-    showPasswordModal.value = false
+    closeUserModal()
   } catch (err) {
     alert('Update error: ' + err.message)
   }
@@ -207,21 +239,21 @@ onMounted(fetchUsers)
 </script>
 
 <style scoped>
-.modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.users-page {
+  padding: 0;
 }
-.modal-content {
-  background: white;
-  padding: 2rem;
-  width: 350px;
-  border-radius: 4px;
+
+h2 {
+  margin: 0 0 1rem;
+  color: var(--heading);
+  font-weight: 800;
+}
+
+.users-table {
+  margin-top: 1rem;
+}
+
+td .btn + .btn {
+  margin-left: 0.4rem;
 }
 </style>

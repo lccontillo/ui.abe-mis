@@ -1,22 +1,497 @@
 @import './base.css';
 
 #app {
-  font-weight: normal;
+  min-height: 100vh;
 }
 
-a,
-.green {
+a {
+  color: inherit;
   text-decoration: none;
-  color: hsla(160, 100%, 37%, 1);
-  transition: 0.4s;
-  padding: 3px;
 }
 
-@media (hover: hover) {
-  a:hover {
-    background-color: hsla(160, 100%, 37%, 0.2);
+.app-page {
+  width: 100%;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.panel {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.btn {
+  min-height: 40px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 0.55rem 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  font-weight: 650;
+  cursor: pointer;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    transform 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.btn:focus-visible,
+.icon-btn:focus-visible,
+.field-control:focus,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+  transform: none;
+}
+
+.btn-primary,
+.green-btn,
+.filters button,
+.pagination button,
+.pages button {
+  background: var(--brand-600);
+  color: #ffffff;
+}
+
+.btn-primary:hover:not(:disabled),
+.green-btn:hover:not(:disabled),
+.filters button:hover:not(:disabled),
+.pagination button:hover:not(:disabled),
+.pages button:hover:not(:disabled) {
+  background: var(--brand-700);
+}
+
+.btn-secondary {
+  background: var(--bg-muted);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.btn-danger,
+.text-red {
+  color: var(--danger-strong);
+}
+
+.icon-btn {
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.field,
+.input-field,
+.input-group,
+.date-input-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+}
+
+.field-label,
+.input-group label,
+.date-input-field label,
+label {
+  color: var(--text);
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.field-control,
+input:not([type='checkbox']):not([type='radio']),
+select,
+textarea {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text);
+  padding: 0.55rem 0.75rem;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background-color 160ms ease;
+}
+
+.field-control:disabled,
+input:disabled,
+select:disabled,
+textarea:disabled {
+  background: var(--bg-muted);
+  color: var(--text-soft);
+  cursor: not-allowed;
+}
+
+input[type='checkbox'],
+input[type='radio'] {
+  accent-color: var(--brand-600);
+}
+
+.table-wrap,
+.data-table {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+}
+
+.data-table table,
+.table,
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--bg-elevated);
+  color: var(--text);
+}
+
+.data-table th,
+.data-table td,
+.table th,
+.table td {
+  padding: 0.72rem 0.8rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.data-table th,
+.table th {
+  background: var(--bg-muted);
+  color: var(--heading);
+  font-weight: 750;
+}
+
+.data-table tbody tr:hover,
+.table tbody tr:hover {
+  background: var(--bg-subtle);
+}
+
+.filters,
+.filter-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+  align-items: end;
+  margin-bottom: 1rem;
+}
+
+.pagination,
+.pages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: flex-end;
+  margin-top: 1rem;
+}
+
+.pagination button,
+.pages button,
+.green-btn,
+.filters button {
+  min-height: 40px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 0.55rem 0.85rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.pagination button:disabled,
+.pages button:disabled {
+  background: var(--bg-muted);
+  color: var(--text-soft);
+  cursor: not-allowed;
+}
+
+.modal-overlay,
+.modal,
+.modal-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(8, 13, 10, 0.58);
+  backdrop-filter: blur(4px);
+}
+
+.modal-content {
+  width: min(100%, 480px);
+  max-height: min(86vh, 720px);
+  overflow: auto;
+  background: var(--bg-elevated);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 1.25rem;
+}
+
+.modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  justify-content: flex-end;
+  margin-top: 1rem;
+}
+
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+  transition: opacity 180ms ease;
+}
+
+.modal-fade-enter-active .modal-content,
+.modal-fade-leave-active .modal-content {
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
+}
+
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+  opacity: 0;
+}
+
+.modal-fade-enter-from .modal-content,
+.modal-fade-leave-to .modal-content {
+  opacity: 0;
+  transform: translateY(10px) scale(0.98);
+}
+
+.v-select {
+  color: var(--text);
+}
+
+.v-select .vs__dropdown-toggle {
+  min-height: 44px;
+  border-color: var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  padding: 0.25rem 0.4rem;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+
+.v-select .vs__selected-options {
+  min-width: 0;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0;
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
+.v-select .vs__selected {
+  min-width: 0;
+  max-width: 100%;
+  margin: 0;
+  padding: 0.2rem 0.25rem;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.v-select.vs--single.vs--open .vs__selected {
+  position: absolute;
+  opacity: 0.4;
+}
+
+.v-select.vs--single.vs--searching .vs__selected {
+  display: none;
+}
+
+.v-select .vs__selected,
+.v-select .vs__search,
+.v-select .vs__dropdown-option {
+  color: var(--text);
+}
+
+.v-select input.vs__search,
+.v-select input.vs__search:focus {
+  flex: 1 1 3rem;
+  width: 0 !important;
+  min-width: 3rem !important;
+  max-width: 100%;
+  min-height: 0 !important;
+  height: 1.5rem;
+  margin: 0 !important;
+  padding: 0 0.25rem !important;
+  border: 0 !important;
+  color: var(--text) !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+.v-select.vs--open input.vs__search,
+.v-select.vs--searching input.vs__search,
+.v-select.vs--open input.vs__search:focus,
+.v-select.vs--searching input.vs__search:focus {
+  flex-basis: 100%;
+  width: 100% !important;
+  min-width: 100% !important;
+}
+
+.v-select .vs__actions {
+  flex: 0 0 auto;
+  padding: 0 0.2rem 0 0.35rem;
+}
+
+.v-select .vs__dropdown-menu {
+  background: var(--bg-elevated);
+  border-color: var(--border);
+}
+
+@media (max-width: 720px) {
+  .app-page {
+    padding: 16px;
+  }
+
+  .modal-overlay,
+  .modal {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .modal-content {
+    width: 100%;
+    max-height: 88vh;
+    border-radius: 14px 14px 0 0;
   }
 }
 
-@media (min-width: 1024px) {
+/* Compatibility layer for older scoped page styles. */
+.container,
+.form-wrapper,
+.fca-data-view,
+.document-settings {
+  color: var(--text);
+}
+
+.action-icon {
+  color: var(--brand-600);
+  cursor: pointer;
+}
+
+.action-icon.disabled {
+  color: var(--text-soft);
+  cursor: not-allowed;
+}
+
+.document-item,
+.field-config,
+.profile-tab,
+.tab-content,
+section {
+  border-color: var(--border);
+}
+
+.group-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+
+.group-filters button {
+  min-height: 36px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-muted);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.group-filters button.active {
+  background: var(--brand-100);
+  color: var(--heading);
+  border-color: var(--brand-600);
+}
+
+.container,
+.form-wrapper,
+.fca-data-view,
+.document-settings,
+.fca-form,
+.field-config,
+.group-block,
+.document-item,
+.profile-tab,
+.tab-content,
+.side-modal-content {
+  background-color: var(--bg-elevated) !important;
+  color: var(--text) !important;
+  border-color: var(--border) !important;
+}
+
+.filters button,
+.pagination button,
+.green-btn,
+.edit-btn,
+.submit-btn {
+  background: var(--brand-600) !important;
+  color: #ffffff !important;
+  border-color: transparent !important;
+}
+
+.filters button:hover,
+.pagination button:hover,
+.green-btn:hover,
+.edit-btn:hover,
+.submit-btn:hover {
+  background: var(--brand-700) !important;
+}
+
+.filters button:disabled,
+.pagination button:disabled {
+  background: var(--bg-muted) !important;
+  color: var(--text-soft) !important;
+}
+
+.form-title,
+.section-title,
+.field-config h3,
+.modal-content h1,
+.modal-content h2,
+.modal-content h3 {
+  color: var(--heading) !important;
+}
+
+.selected,
+.stat-label {
+  color: var(--text-muted) !important;
 }

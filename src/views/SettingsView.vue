@@ -1,8 +1,8 @@
 <template>
-  <div class="settings-container">
+  <div class="settings-container app-page">
     <TitleBar title="Settings" :icon="Settings20" />
 
-    <div class="tabs">
+    <div class="tabs settings-tabs">
       <RouterLink to="/settings" class="tab-btn" exact-active-class="active">Account</RouterLink>
       <RouterLink
         v-if="userStore.user?.is_admin"
@@ -26,7 +26,7 @@
       >
     </div>
 
-    <div class="tab-panel">
+    <div class="tab-panel panel">
       <router-view />
     </div>
   </div>
@@ -64,44 +64,49 @@ const userStore = useUserStore()
 <style scoped>
 .settings-container {
   margin: 0 auto;
-  padding: 2rem 1rem;
 }
 
 .tabs {
   display: flex;
-  gap: 1rem;
+  gap: 0.35rem;
   margin-bottom: 1rem;
-  border-bottom: 2px solid #cce4cd;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border);
 }
 
 .tab-btn {
   padding: 0.6rem 1.5rem;
   border: none;
-  background: #e6f4ea;
+  background: var(--bg-muted);
   cursor: pointer;
   border-radius: 6px 6px 0 0;
-  font-weight: 600;
-  color: #347a3d;
+  font-weight: 700;
+  color: var(--text-muted);
   text-decoration: none;
+  white-space: nowrap;
   transition:
-    background 0.2s,
+    background-color 0.2s,
     color 0.2s;
 }
 
 .tab-btn:hover {
-  background: #d5eddb;
+  background: var(--brand-50);
 }
 
 .tab-btn.active {
-  background: #ffffff;
-  color: #1e4f24;
-  border-bottom: 2px solid #1e4f24;
+  background: var(--brand-50);
+  color: var(--brand-700);
+  border-bottom: 2px solid var(--brand-600);
 }
 
 .tab-panel {
-  background: #fff;
   border-radius: 0 0 8px 8px;
-  box-shadow: 0 2px 8px #0001;
   padding: 2rem;
+}
+
+@media (max-width: 720px) {
+  .tab-panel {
+    padding: 1rem;
+  }
 }
 </style>

@@ -52,7 +52,7 @@ onMounted(fetchLogs)
 </script>
 
 <template>
-  <div>
+  <div class="audit-log app-page">
     <!-- Filters -->
     <div class="filters">
       <select v-model="filterUser">
@@ -66,27 +66,29 @@ onMounted(fetchLogs)
     </div>
 
     <!-- Table -->
-    <table class="table">
-      <thead>
-        <tr>
-          <th>Action</th>
-          <th>Metadata</th>
-          <th>User</th>
-          <th @click="toggleSort">
-            Created At
-            <span style="float: right">{{ order === 'asc' ? '▲' : '▼' }}</span>
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="log in logs" :key="log.id">
-          <td>{{ log.action_id }}</td>
-          <td>{{ log.metadata }}</td>
-          <td>{{ log.username }}</td>
-          <td>{{ new Date(log.created_at).toLocaleString() }}</td>
-        </tr>
-      </tbody>
-    </table>
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Action</th>
+            <th>Metadata</th>
+            <th>User</th>
+            <th @click="toggleSort">
+              Created At
+              <span style="float: right">{{ order === 'asc' ? '▲' : '▼' }}</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="log in logs" :key="log.id">
+            <td>{{ log.action_id }}</td>
+            <td>{{ log.metadata }}</td>
+            <td>{{ log.username }}</td>
+            <td>{{ new Date(log.created_at).toLocaleString() }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
 
     <!-- Pagination -->
     <div class="pagination">
@@ -108,27 +110,7 @@ onMounted(fetchLogs)
 </template>
 
 <style scoped>
-.table {
-  width: 100%;
-  border-collapse: collapse;
-}
-.table th,
-.table td {
-  padding: 0.5rem;
-  border: 1px solid #ccc;
-}
-.filters {
-  display: flex;
-  gap: 1rem;
-  margin-bottom: 1rem;
-}
-.pagination {
-  margin-top: 1rem;
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-.pages button {
-  padding: 0.3rem 0.6rem;
+.audit-log {
+  padding: 0;
 }
 </style>

@@ -1,5 +1,5 @@
 <template>
-  <div class="container">
+  <div class="container app-page">
     <TitleBar title="Farmers' Cooperative Associations" :icon="Home20" />
 
     <!-- Filters -->
@@ -16,12 +16,18 @@
         <option value="Corn">Corn</option>
         <option value="Peanuts">Peanuts</option>
       </select> -->
-      <button @click="resetFilters">Reset</button>
-      <button @click="fetchFcas">Apply</button>
+      <button class="btn btn-secondary" type="button" @click="resetFilters">Reset</button>
+      <button class="btn btn-primary" type="button" @click="fetchFcas">Apply</button>
     </div>
 
     <!-- Table -->
-    <DataTable :data="fcas" :columns="columns" :sort="sort" :onSort="toggleSort">
+    <DataTable
+      :data="fcas"
+      :columns="columns"
+      :sort="sort"
+      :onSort="toggleSort"
+      @view="viewFca($event.id)"
+    >
       <template #actions="{ row }">
         <View20 title="View" class="action-icon" @click="viewFca(row.id)" />
         <!-- <DocumentExport20 title="Generate" class="action-icon" @click="generateDocs(row.id)" /> -->

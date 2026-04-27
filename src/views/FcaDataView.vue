@@ -1,5 +1,5 @@
 <template>
-  <div class="fca-data-view">
+  <div class="fca-data-view app-page">
     <TitleBar title="FCA Details" :icon="Document20" />
 
     <!-- Tabs -->
@@ -21,7 +21,9 @@
     <!-- Profile Tab -->
     <div v-if="activeTab === 'profile'" class="profile-tab">
       <div class="flex justify-between items-center mb-4">
-        <button class="edit-btn" @click="showEdit = true">Edit FCA</button>
+        <button class="edit-btn btn btn-primary" type="button" @click="openEditModal">
+          Edit FCA
+        </button>
       </div>
       <div v-if="loading" class="p-4 text-center">Loading...</div>
       <div v-else>
@@ -146,11 +148,11 @@
     <!-- Edit Modal -->
     <div v-if="showEdit" class="modal-overlay">
       <div class="modal-content">
-        <button class="close-btn" @click="showEdit = false">&times;</button>
+        <button class="close-btn" @click="closeEditModal">&times;</button>
         <FcaForm
           :initialData="fca"
           :editMode="true"
-          @close="showEdit = false"
+          @close="closeEditModal"
           @updated="handleUpdate"
         />
       </div>
@@ -165,6 +167,7 @@ import TitleBar from '@/components/TitleBar.vue'
 import DataTable from '@/components/DataTable.vue'
 import FcaForm from './FcaForm.vue'
 import { Document20 } from '@carbon/icons-vue'
+import { useHashModal } from '@/composables/useHashModal'
 
 const token = localStorage.getItem('token')
 const route = useRoute()
@@ -174,6 +177,21 @@ const activeTab = ref('profile')
 const loading = ref(true)
 const fca = reactive({ general: {}, organization: {}, officers: [], bods: [] })
 const showEdit = ref(false)
+const { openHashModal, closeHashModal } = useHashModal({
+  'edit-fca': (isOpen) => {
+    showEdit.value = isOpen
+  },
+})
+
+function openEditModal() {
+  showEdit.value = true
+  openHashModal('edit-fca')
+}
+
+function closeEditModal() {
+  closeHashModal('edit-fca')
+  showEdit.value = false
+}
 
 function formatDate(dateStr) {
   return dateStr ? new Date(dateStr).toLocaleDateString() : ''
@@ -190,7 +208,7 @@ async function fetchFca() {
 
 function handleUpdate() {
   fetchFca()
-  showEdit.value = false
+  closeEditModal()
 }
 
 // Documents logic
@@ -259,8 +277,7 @@ onMounted(() => {
   max-width: 1100px;
   margin: 0 auto;
   padding: 2rem 1rem;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  color: #1f2d16;
+  color: var(--text);
 }
 
 .tabs {
@@ -273,24 +290,26 @@ onMounted(() => {
 .tab-btn {
   padding: 0.6rem 1.5rem;
   border: none;
-  background: #e6f4ea;
+  background: var(--bg-muted);
   cursor: pointer;
   border-radius: 6px 6px 0 0;
   font-weight: 600;
-  color: #347a3d;
+  color: var(--text);
   transition: background 0.2s;
 }
 .tab-btn.active {
-  background: #ffffff;
-  color: #1e4f24;
-  border-bottom: 2px solid #1e4f24;
+  background: var(--bg-elevated);
+  color: var(--heading);
+  border-bottom: 2px solid var(--brand-600);
 }
 
 .profile-tab,
 .documents-tab {
-  background: #fff;
+  background: var(--bg-elevated);
+  color: var(--text);
+  border: 1px solid var(--border);
   border-radius: 0 0 8px 8px;
-  box-shadow: 0 2px 8px #0001;
+  box-shadow: var(--shadow-sm);
   padding: 2rem;
 }
 
@@ -311,18 +330,24 @@ section {
 section h3 {
   margin-bottom: 1rem;
   font-size: 1.1rem;
-  color: #2c5e33;
-  border-left: 4px solid #72c17f;
+  color: var(--heading);
+  border-left: 4px solid var(--brand-600);
   padding-left: 0.5rem;
 }
 
 .officer-block,
 .bod-block {
-  border: 1px solid #cce4cd;
+  border: 1px solid var(--border);
   padding: 12px 16px;
   margin-bottom: 1rem;
-  border-radius: 6px;
-  background: #f8fdf9;
+  border-radius: var(--radius-sm);
+  background: var(--bg-muted);
+  color: var(--text);
+}
+
+.officer-block strong,
+.bod-block strong {
+  color: var(--heading);
 }
 
 .edit-btn {
@@ -340,22 +365,34 @@ section h3 {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.3);
+  background: rgba(0, 0, 0, 0.45);
   z-index: 1000;
   display: flex;
   justify-content: flex-end;
+  align-items: stretch;
+  padding: 0;
 }
 .modal-content {
-  background: #fff;
-  width: 1000px;
+  background: var(--bg-elevated);
+  width: min(100vw, 1000px);
   height: 100vh;
+  height: 100dvh;
+  max-height: none;
   overflow-y: auto;
-  padding: 2rem;
+  padding: 0;
   position: relative;
-  box-shadow: -2px 0 16px #0002;
-  border-radius: 8px 0 0 8px;
+  box-shadow: -2px 0 16px rgba(0, 0, 0, 0.18);
+  border-radius: 0;
   animation: slideIn 0.2s;
 }
+
+.modal-content :deep(.fca-form) {
+  max-width: none;
+  min-height: 100%;
+  margin: 0;
+  padding: 2rem;
+}
+
 @keyframes slideIn {
   from {
     transform: translateX(100%);
@@ -366,16 +403,17 @@ section h3 {
 }
 .close-btn {
   position: absolute;
-  top: 1.2rem;
-  right: 2rem;
+  top: 1rem;
+  right: 1.25rem;
+  z-index: 2;
   font-size: 2rem;
   background: none;
   border: none;
-  color: #888;
+  color: var(--text-muted);
   cursor: pointer;
 }
 .close-btn:hover {
-  color: #347a3d;
+  color: var(--brand-700);
 }
 
 .filters {

@@ -1,35 +1,34 @@
 <template>
   <div class="login-container">
-    <div class="login-card">
-      <!-- Logo + Project Name -->
-      <div class="logo">
-        <!-- Replace with actual <img> or <svg> -->
-        <!-- <svg width="48" height="48" viewBox="0 0 24 24" fill="green">
-          <circle cx="12" cy="12" r="10" />
-        </svg> -->
-        <img src="@/assets/logo.svg" alt="ABE Logo" width="75" height="75" />
+    <div class="login-shell">
+      <section class="login-brand" aria-label="Application information">
+        <img src="@/assets/logo.svg" alt="ABE Logo" width="128" height="128" />
         <h1>ABE Alcala MIS</h1>
-        <p class="subtitle">
-          Management Information System for Agricultural and Biosystems Engineers in Alcala
+        <p>
+          Management tools for agricultural and biosystems engineering records, documents, and
+          activity tracking.
         </p>
+      </section>
+
+      <div class="login-card panel">
+        <div class="login-heading">
+          <h2>Sign in</h2>
+          <p>Use your assigned account credentials.</p>
+        </div>
+
+        <form @submit.prevent="login" class="login-form">
+          <UserNameField v-model="username" />
+          <PasswordField v-model="password" />
+
+          <button class="btn btn-primary login-button" :disabled="loading" type="submit">
+            <span>{{ loading ? 'Signing in...' : 'Login' }}</span>
+          </button>
+
+          <button class="forgot" type="button" @click="showForgotToast">Forgot Password?</button>
+
+          <div v-if="error" class="error-msg" role="alert">{{ error }}</div>
+        </form>
       </div>
-
-      <form @submit.prevent="login" class="login-form">
-        <UserNameField v-model="username" />
-        <PasswordField v-model="password" />
-
-        <button class="login-button" :disabled="loading" type="submit">
-          <template v-if="loading">
-            Signing In...
-            <!-- <DonutLoader color="white" size="1.5rem" :multi="false" /> -->
-          </template>
-          <template v-else>Login</template>
-        </button>
-
-        <div class="forgot" @click="showForgotToast">Forgot Password?</div>
-
-        <div v-if="error" class="error-msg">{{ error }}</div>
-      </form>
     </div>
 
     <Toast />
@@ -74,6 +73,7 @@ async function login() {
 
     router.push('/')
   } catch (err) {
+    error.value = err.message
     proxy.$toast({ message: err.message, type: 'error' })
   } finally {
     loading.value = false
@@ -90,37 +90,86 @@ function showForgotToast() {
 
 <style scoped>
 .login-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
   min-height: 100vh;
-  background: #f0f4f1;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(
+      circle at 20% 20%,
+      color-mix(in srgb, var(--brand-100) 58%, transparent),
+      transparent 32%
+    ),
+    linear-gradient(135deg, var(--bg), var(--bg-muted));
+}
+
+.login-shell {
+  width: min(100%, 980px);
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(360px, 0.95fr);
+  gap: 24px;
+  align-items: stretch;
+}
+
+.login-brand {
+  min-height: 520px;
+  padding: 42px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(160deg, color-mix(in srgb, var(--brand-700) 88%, #000 12%), var(--brand-600)),
+    var(--brand-600);
+  color: #ffffff;
+  box-shadow: var(--shadow-lg);
+}
+
+.login-brand img {
+  width: 128px;
+  height: 128px;
+  margin-bottom: auto;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.9);
+  padding: 12px;
+}
+
+.login-brand h1 {
+  margin: 0 0 0.75rem;
+  font-size: clamp(2rem, 5vw, 3.6rem);
+  line-height: 1;
+  font-weight: 850;
+  letter-spacing: 0;
+}
+
+.login-brand p {
+  max-width: 34rem;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 1rem;
 }
 
 .login-card {
-  background: white;
+  align-self: center;
   padding: 2rem;
   border-radius: 1rem;
   width: 100%;
-  max-width: 420px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
-.logo {
-  text-align: center;
-  margin-bottom: 1rem;
+.login-heading {
+  margin-bottom: 1.25rem;
 }
 
-.logo h1 {
-  margin: 0.5rem 0 0.25rem;
-  font-size: 1.5rem;
-  color: #2e7d32;
-  font-weight: bold;
+.login-heading h2 {
+  margin: 0;
+  color: var(--heading);
+  font-size: 1.6rem;
+  font-weight: 850;
 }
 
-.subtitle {
-  font-size: 0.875rem;
-  color: #555;
+.login-heading p {
+  margin: 0.25rem 0 0;
+  color: var(--text-muted);
 }
 
 .login-form {
@@ -130,34 +179,80 @@ function showForgotToast() {
 }
 
 .login-button {
-  background-color: #2e7d32;
-  color: white;
-  padding: 0.75rem;
-  border: none;
-  border-radius: 0.5rem;
-  cursor: pointer;
-  font-weight: bold;
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  width: 100%;
 }
 
 .login-button:disabled {
-  opacity: 0.7;
   cursor: wait;
 }
 
 .forgot {
-  margin-top: 0.5rem;
+  align-self: flex-end;
+  padding: 0;
+  border: 0;
+  background: transparent;
   font-size: 0.875rem;
-  color: #1b5e20;
+  color: var(--brand-700);
   text-align: right;
   cursor: pointer;
+  font-weight: 700;
 }
 
 .error-msg {
-  color: #d32f2f;
+  color: var(--danger-strong);
   font-size: 0.875rem;
-  margin-top: 0.5rem;
+  font-weight: 700;
+}
+
+.login-form :deep(input:not([type='checkbox']):not([type='radio'])),
+.login-form :deep(.password-wrapper) {
+  min-height: 44px;
+  border: 1px solid color-mix(in srgb, var(--brand-600) 42%, var(--border));
+  background: color-mix(in srgb, var(--bg-elevated) 88%, var(--bg-muted));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.login-form :deep(input:not([type='checkbox']):not([type='radio']):focus) {
+  outline: none;
+}
+
+.login-form :deep(.password-wrapper:focus-within),
+.login-form :deep(input:not([type='checkbox']):not([type='radio']):focus-visible) {
+  border-color: var(--brand-600);
+  box-shadow: 0 0 0 3px var(--focus);
+  outline: none;
+}
+
+.login-form :deep(.password-wrapper input) {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+@media (max-width: 780px) {
+  .login-container {
+    padding: 16px;
+    align-items: start;
+  }
+
+  .login-shell {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .login-brand {
+    min-height: auto;
+    padding: 24px;
+  }
+
+  .login-brand img {
+    width: 88px;
+    height: 88px;
+    margin-bottom: 2rem;
+  }
+
+  .login-card {
+    padding: 1.25rem;
+  }
 }
 </style>

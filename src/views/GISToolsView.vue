@@ -1,11 +1,15 @@
 <template>
-  <div class="container">
+  <div class="container app-page">
     <TitleBar title="GIS Tools" :icon="Home20" />
 
     <!-- Filters -->
     <div class="filters">
-      <button @click="openModal('gpxToShp')">+ GPX to SHP</button>
-      <button @click="openModal('shpToGpx')">+ SHP to GPX</button>
+      <button class="btn btn-primary" type="button" @click="openModal('gpxToShp')">
+        + GPX to SHP
+      </button>
+      <button class="btn btn-primary" type="button" @click="openModal('shpToGpx')">
+        + SHP to GPX
+      </button>
     </div>
 
     <!-- Table -->
@@ -34,43 +38,57 @@
     </div>
   </div>
 
-  <div v-if="modals.gpxToShp" class="modal-overlay">
-    <div class="modal-content">
-      <h3>GPX to SHP Conversion</h3>
-      <form @submit.prevent="updatePassword">
-        <div class="form-group">
-          <label>Upload ZIP containing GPX files</label>
-          <input type="file" accept=".zip" ref="gpxFileInput" required />
-        </div>
-        {{ selectedGpxFile }}
-        <div class="modal-actions">
-          <button type="button" class="btn-primary" :disabled="isConvertingGpx" @click="convertGPX">
-            {{ isConvertingGpx ? 'Converting...' : 'Convert' }}
-          </button>
-          <button type="button" class="btn-secondary" @click="closeAllModals">Cancel</button>
-        </div>
-      </form>
+  <Transition name="modal-fade">
+    <div v-if="modals.gpxToShp" class="modal-overlay">
+      <div class="modal-content">
+        <h3>GPX to SHP Conversion</h3>
+        <form @submit.prevent="updatePassword">
+          <div class="form-group">
+            <label>Upload ZIP containing GPX files</label>
+            <input type="file" accept=".zip" ref="gpxFileInput" required />
+          </div>
+          {{ selectedGpxFile }}
+          <div class="modal-actions">
+            <button
+              type="button"
+              class="btn btn-primary"
+              :disabled="isConvertingGpx"
+              @click="convertGPX"
+            >
+              {{ isConvertingGpx ? 'Converting...' : 'Convert' }}
+            </button>
+            <button type="button" class="btn btn-secondary" @click="closeAllModals">Cancel</button>
+          </div>
+        </form>
+      </div>
     </div>
-  </div>
+  </Transition>
 
-  <div v-if="modals.shpToGpx" class="modal-overlay">
-    <div class="modal-content">
-      <h3>SHP to GPX Conversion</h3>
-      <form @submit.prevent="updatePassword">
-        <div class="form-group">
-          <label>Upload ZIP containing Shapefiles (cpg,dbf,prj,shp,shx)</label>
-          <input type="file" accept=".zip" ref="shpFileInput" required />
-        </div>
+  <Transition name="modal-fade">
+    <div v-if="modals.shpToGpx" class="modal-overlay">
+      <div class="modal-content">
+        <h3>SHP to GPX Conversion</h3>
+        <form @submit.prevent="updatePassword">
+          <div class="form-group">
+            <label>Upload ZIP containing Shapefiles (cpg,dbf,prj,shp,shx)</label>
+            <input type="file" accept=".zip" ref="shpFileInput" required />
+          </div>
 
-        <div class="modal-actions">
-          <button type="button" class="btn-primary" :disabled="isConvertingShp" @click="convertSHP">
-            {{ isConvertingShp ? 'Converting...' : 'Convert' }}
-          </button>
-          <button type="button" class="btn-secondary" @click="closeAllModals">Cancel</button>
-        </div>
-      </form>
+          <div class="modal-actions">
+            <button
+              type="button"
+              class="btn btn-primary"
+              :disabled="isConvertingShp"
+              @click="convertSHP"
+            >
+              {{ isConvertingShp ? 'Converting...' : 'Convert' }}
+            </button>
+            <button type="button" class="btn btn-secondary" @click="closeAllModals">Cancel</button>
+          </div>
+        </form>
+      </div>
     </div>
-  </div>
+  </Transition>
 </template>
 
 <script setup>
@@ -79,9 +97,18 @@ import { useRouter } from 'vue-router'
 import TitleBar from '@/components/TitleBar.vue'
 import DataTable from '@/components/DataTable.vue'
 import { Home20, View20, DocumentExport20, TrashCan20, Launch20 } from '@carbon/icons-vue'
+import { useHashModal } from '@/composables/useHashModal'
 
-const modals = ref({ gpxToShp: false, ShpToGpx: false })
+const modals = ref({ gpxToShp: false, shpToGpx: false })
 const passwordForm = ref({ new: '', confirm: '' })
+const { openHashModal, closeHashModal } = useHashModal({
+  'gpx-to-shp': (isOpen) => {
+    modals.value.gpxToShp = isOpen
+  },
+  'shp-to-gpx': (isOpen) => {
+    modals.value.shpToGpx = isOpen
+  },
+})
 
 const router = useRouter()
 const token = localStorage.getItem('token')
@@ -147,12 +174,14 @@ async function fetchConversions() {
 }
 
 function openModal(type) {
-  closeAllModals()
   modals.value[type] = true
+  openHashModal(type === 'gpxToShp' ? 'gpx-to-shp' : 'shp-to-gpx')
 }
 
 function closeAllModals() {
-  modals.value = { gpxToShp: false, ShpToGpx: false }
+  closeHashModal('gpx-to-shp')
+  closeHashModal('shp-to-gpx')
+  modals.value = { gpxToShp: false, shpToGpx: false }
   passwordForm.value = { new: '', confirm: '' }
 }
 

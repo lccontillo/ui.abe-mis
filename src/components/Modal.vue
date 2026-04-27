@@ -1,10 +1,22 @@
 <template>
-  <div class="modal-overlay" @click.self="$emit('close')">
-    <div class="modal-content">
-      <h3 class="modal-title">{{ title }}</h3>
-      <slot />
+  <Transition name="modal-fade" appear>
+    <div class="modal-overlay" @click.self="$emit('close')">
+      <section class="modal-content" role="dialog" aria-modal="true" :aria-label="title">
+        <div class="modal-header">
+          <h3 class="modal-title">{{ title }}</h3>
+          <button
+            class="icon-btn modal-close"
+            type="button"
+            aria-label="Close"
+            @click="$emit('close')"
+          >
+            x
+          </button>
+        </div>
+        <slot />
+      </section>
     </div>
-  </div>
+  </Transition>
 </template>
 
 <script setup>
@@ -15,32 +27,22 @@ defineEmits(['close'])
 </script>
 
 <style scoped>
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: #0006;
+.modal-header {
   display: flex;
   align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal-content {
-  background: #fff;
-  padding: 2rem;
-  border-radius: 8px;
-  width: 100%;
-  max-width: 400px;
-  box-shadow: 0 0 12px rgba(0, 0, 0, 0.2);
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
 }
 
 .modal-title {
   font-size: 1.25rem;
-  margin-bottom: 1rem;
-  color: #1e4f24;
-  font-weight: bold;
+  margin: 0;
+  color: var(--heading);
+  font-weight: 800;
+}
+
+.modal-close {
+  flex: 0 0 auto;
 }
 </style>

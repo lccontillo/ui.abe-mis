@@ -1,5 +1,5 @@
 <template>
-  <form @submit.prevent="submitForm" class="fca-form">
+  <form @submit.prevent="submitForm" class="fca-form app-page">
     <h1 class="form-title">{{ editMode ? 'Edit FCA Profile' : 'New FCA Profile' }}</h1>
 
     <section>
@@ -325,17 +325,18 @@ async function submitForm() {
 
 <style scoped>
 .fca-form {
-  background: #fff;
+  background: var(--bg-elevated);
   padding: 2rem;
   max-width: 960px;
   margin: auto;
+  color: var(--text);
 }
 
 .form-title {
   margin-bottom: 1.5rem;
   font-size: 1.75rem;
-  color: #1e4f24;
-  border-bottom: 2px solid #cce4cd;
+  color: var(--heading);
+  border-bottom: 2px solid var(--border);
   padding-bottom: 0.5rem;
 }
 
@@ -343,8 +344,8 @@ async function submitForm() {
   font-size: 1.3rem;
   margin-top: 2rem;
   margin-bottom: 1rem;
-  color: #2e7d32;
-  border-left: 4px solid #2e7d32;
+  color: var(--heading);
+  border-left: 4px solid var(--brand-600);
   padding-left: 0.75rem;
 }
 
@@ -356,17 +357,17 @@ async function submitForm() {
 }
 
 .group-block {
-  background: #f8f8f8;
-  border: 1px solid #ddd;
+  background: var(--bg-muted);
+  border: 1px solid var(--border);
   padding: 1rem;
   border-radius: 6px;
   margin-bottom: 1rem;
 }
 
 .add-btn {
-  background: #e6f4ea;
+  background: var(--brand-50);
   border: none;
-  color: #347a3d;
+  color: var(--brand-700);
   padding: 0.5rem 1rem;
   margin-bottom: 1rem;
   font-weight: 600;
@@ -375,7 +376,7 @@ async function submitForm() {
   transition: background 0.2s;
 }
 .add-btn:hover {
-  background: #d5eedd;
+  background: var(--brand-100);
 }
 
 .submit-section {
@@ -384,7 +385,7 @@ async function submitForm() {
 }
 
 .submit-btn {
-  background: #2e7d32;
+  background: var(--brand-600);
   color: white;
   padding: 0.75rem 1.5rem;
   font-size: 1rem;
@@ -395,6 +396,6 @@ async function submitForm() {
   transition: background 0.2s;
 }
 .submit-btn:hover {
-  background: #256128;
+  background: var(--brand-700);
 }
 </style>

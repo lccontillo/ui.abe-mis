@@ -1,7 +1,7 @@
 <template>
-  <div class="document-settings">
+  <div class="document-settings app-page">
     <div class="actions">
-      <button class="green-btn" @click="showGroupModal = true">+ New Group</button>
+      <button class="green-btn" @click="openNewGroupModal">+ New Group</button>
       <button class="green-btn" @click="openDocumentModal()">+ New Document</button>
     </div>
 
@@ -21,11 +21,21 @@
     </div>
 
     <!-- Data Table -->
-    <DataTable :data="documents" :columns="columns" :sort="sort" :onSort="toggleSort">
+    <DataTable
+      :data="documents"
+      :columns="columns"
+      :sort="sort"
+      :onSort="toggleSort"
+      @view="viewDocument"
+    >
       <template #actions="{ row }">
-        <button @click="openDocumentModal(row)">Edit</button>
-        <button @click="viewDocument(row)">View</button>
-        <button @click="deleteDocument(row)" class="text-red">Delete</button>
+        <button class="btn btn-secondary" type="button" @click="openDocumentModal(row)">
+          Edit
+        </button>
+        <button class="btn btn-secondary" type="button" @click="viewDocument(row)">View</button>
+        <button class="btn btn-secondary text-red" type="button" @click="deleteDocument(row)">
+          Delete
+        </button>
       </template>
     </DataTable>
 
@@ -49,26 +59,30 @@
     </div>
 
     <!-- Modals -->
-    <Modal v-if="showGroupModal" title="New Group" @close="showGroupModal = false">
+    <Modal v-if="showGroupModal" title="New Group" @close="closeDocumentSettingsModal">
       <input v-model="newGroupName" placeholder="Group Name" />
       <div class="modal-actions">
-        <button class="green-btn" @click="createGroup">Create</button>
-        <button @click="showGroupModal = false">Cancel</button>
+        <button class="btn btn-primary" type="button" @click="createGroup">Create</button>
+        <button class="btn btn-secondary" type="button" @click="closeDocumentSettingsModal">
+          Cancel
+        </button>
       </div>
     </Modal>
 
-    <Modal v-if="showEditGroupModal" title="Edit Group" @close="showEditGroupModal = false">
+    <Modal v-if="showEditGroupModal" title="Edit Group" @close="closeDocumentSettingsModal">
       <input v-model="updatedGroupName" />
       <div class="modal-actions">
-        <button class="green-btn" @click="updateGroup">Save</button>
-        <button @click="showEditGroupModal = false">Cancel</button>
+        <button class="btn btn-primary" type="button" @click="updateGroup">Save</button>
+        <button class="btn btn-secondary" type="button" @click="closeDocumentSettingsModal">
+          Cancel
+        </button>
       </div>
     </Modal>
 
     <Modal
       v-if="showDocumentModal"
       :title="editingDocument ? 'Edit Document' : 'New Document'"
-      @close="showDocumentModal = false"
+      @close="closeDocumentSettingsModal"
     >
       <select v-model="form.group_id">
         <option v-for="g in groups" :value="g.id" :key="g.id">{{ g.name }}</option>
@@ -76,10 +90,12 @@
       <input v-model="form.name" placeholder="Document Name" />
       <input type="file" @change="(e) => (form.file = e.target.files[0])" />
       <div class="modal-actions">
-        <button class="green-btn" @click="submitDocument" :disabled="saving">
+        <button class="btn btn-primary" type="button" @click="submitDocument" :disabled="saving">
           {{ saving ? 'Saving...' : 'Save' }}
         </button>
-        <button @click="showDocumentModal = false">Cancel</button>
+        <button class="btn btn-secondary" type="button" @click="closeDocumentSettingsModal">
+          Cancel
+        </button>
       </div>
     </Modal>
   </div>
@@ -92,6 +108,7 @@ import DataTable from '@/components/DataTable.vue'
 import Modal from '@/components/Modal.vue'
 import TitleBar from '@/components/TitleBar.vue'
 import { Document20 } from '@carbon/icons-vue'
+import { useHashModal } from '@/composables/useHashModal'
 
 const token = localStorage.getItem('token')
 const router = useRouter()
@@ -117,6 +134,17 @@ const updatedGroupName = ref('')
 const showDocumentModal = ref(false)
 const editingDocument = ref(null)
 const form = ref({ group_id: '', name: '', file: null })
+const { openHashModal, closeHashModal } = useHashModal({
+  'new-group': (isOpen) => {
+    showGroupModal.value = isOpen
+  },
+  'edit-group': (isOpen) => {
+    showEditGroupModal.value = isOpen
+  },
+  'document-modal': (isOpen) => {
+    showDocumentModal.value = isOpen
+  },
+})
 
 const columns = [
   { label: 'Name', key: 'name', sortable: true },
@@ -161,15 +189,21 @@ async function createGroup() {
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ name: newGroupName.value }),
   })
-  showGroupModal.value = false
+  closeDocumentSettingsModal()
   newGroupName.value = ''
   fetchGroups()
+}
+
+function openNewGroupModal() {
+  showGroupModal.value = true
+  openHashModal('new-group')
 }
 
 function startEditGroup(group) {
   editingGroup.value = group
   updatedGroupName.value = group.name
   showEditGroupModal.value = true
+  openHashModal('edit-group')
 }
 
 async function updateGroup() {
@@ -178,7 +212,7 @@ async function updateGroup() {
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ id: editingGroup.value.id, name: updatedGroupName.value }),
   })
-  showEditGroupModal.value = false
+  closeDocumentSettingsModal()
   fetchGroups()
 }
 
@@ -191,6 +225,16 @@ function openDocumentModal(doc = null) {
     editingDocument.value = null
     form.value = { group_id: '', name: '', file: null }
   }
+  openHashModal('document-modal')
+}
+
+function closeDocumentSettingsModal() {
+  closeHashModal('new-group')
+  closeHashModal('edit-group')
+  closeHashModal('document-modal')
+  showGroupModal.value = false
+  showEditGroupModal.value = false
+  showDocumentModal.value = false
 }
 
 async function submitDocument() {
@@ -214,7 +258,7 @@ async function submitDocument() {
       body: fd,
     })
 
-    showDocumentModal.value = false
+    closeDocumentSettingsModal()
     fetchDocuments()
   } catch (error) {
     console.error('Error submitting document:', error)
@@ -261,7 +305,7 @@ onMounted(() => {
 
 <style scoped>
 .document-settings {
-  padding: 1rem;
+  padding: 1rem 0;
 }
 
 .actions {
@@ -271,16 +315,16 @@ onMounted(() => {
 }
 
 .green-btn {
-  background: #2e7d32;
-  color: white;
+  background: var(--brand-600);
+  color: #ffffff;
   padding: 0.5rem 1.2rem;
   border: none;
-  border-radius: 4px;
-  font-weight: 500;
+  border-radius: var(--radius-sm);
+  font-weight: 700;
   cursor: pointer;
 }
 .green-btn:hover {
-  background-color: #256128;
+  background: var(--brand-700);
 }
 
 .group-filters {
@@ -291,16 +335,19 @@ onMounted(() => {
   margin-bottom: 1rem;
 }
 .group-filters button {
-  background: #e6f4ea;
-  border: none;
+  background: var(--bg-muted);
+  color: var(--text);
+  border: 1px solid var(--border);
   padding: 0.4rem 1rem;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   position: relative;
 }
 .group-filters button.active {
-  background: #a5d6a7;
-  font-weight: bold;
+  background: var(--brand-100);
+  color: var(--heading);
+  border-color: var(--brand-600);
+  font-weight: 800;
 }
 .group-filters .edit,
 .group-filters .x {
@@ -309,7 +356,7 @@ onMounted(() => {
   font-weight: bold;
 }
 .group-filters .x:hover {
-  color: red;
+  color: var(--danger-strong);
 }
 
 .pagination {
@@ -325,6 +372,6 @@ onMounted(() => {
   margin-top: 1rem;
 }
 .text-red {
-  color: #d32f2f;
+  color: var(--danger-strong);
 }
 </style>

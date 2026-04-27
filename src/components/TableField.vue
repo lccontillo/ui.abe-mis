@@ -1,27 +1,29 @@
 <template>
-  <div>
-    <label>{{ field.field_label }}</label>
-    <table border="1" cellpadding="4">
-      <thead>
-        <tr>
-          <th v-for="col in field.properties.columns" :key="col.field_label">
-            {{ col.field_label }}
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="(row, rowIndex) in modelValue" :key="rowIndex">
-          <td v-for="col in field.properties.columns" :key="col.field_label">
-            <component
-              :is="getFieldComponent(col)"
-              :field="col"
-              v-model="row[camel(col.field_label)]"
-            />
-          </td>
-        </tr>
-      </tbody>
-    </table>
-    <button @click="addRow">+ Add Row</button>
+  <div class="input-field table-field">
+    <label class="field-label">{{ field.field_label }}</label>
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th v-for="col in field.properties.columns" :key="col.field_label">
+              {{ col.field_label }}
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="(row, rowIndex) in modelValue" :key="rowIndex">
+            <td v-for="col in field.properties.columns" :key="col.field_label">
+              <component
+                :is="getFieldComponent(col)"
+                :field="col"
+                v-model="row[camel(col.field_label)]"
+              />
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <button class="btn btn-secondary" type="button" @click="addRow">+ Add Row</button>
   </div>
 </template>
 
@@ -71,3 +73,13 @@ function addRow() {
   emit('update:modelValue', [...props.modelValue, newRow])
 }
 </script>
+
+<style scoped>
+.table-field {
+  align-items: flex-start;
+}
+
+.table-wrap {
+  align-self: stretch;
+}
+</style>
