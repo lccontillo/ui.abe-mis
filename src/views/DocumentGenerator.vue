@@ -5,6 +5,7 @@ const { success, error, warning } = useToast()
 import BreadcrumbNav from '@/components/BreadcrumbNav.vue'
 import Stepper from '@/components/Stepper.vue'
 import SkeletonLoader from '@/components/SkeletonLoader.vue'
+import EmptyState from '@/components/EmptyState.vue'
 import Modal from '@/components/Modal.vue'
 import fuzzysort from 'fuzzysort'
 import { computePosition, autoUpdate, offset, flip, shift } from '@floating-ui/dom'
@@ -354,17 +355,33 @@ async function downloadAndZipDocuments(docIds) {
   }
 }
 
+const canProceed = computed(() => !!selectedFca.value && !!selectedGroup.value)
+
+const proceedToDocuments = async () => {
+  if (!canProceed.value) return
+  if (selectedGroup.value) {
+    await fetchDocuments()
+  }
+  currentStep.value = 1
+}
+
 const onFcaChange = () => {
   const match = fcas.value.find((fca) => fca.name === searchFca.value)
-  if (match) selectedFca.value = match
+  selectedFca.value = match || null
+  if (selectedFca.value && selectedGroup.value) {
+    fetchDocuments()
+    currentStep.value = 1
+  }
 }
 
 const onGroupChange = () => {
-  // alert('Group changed')
   const match = groups.value.find((group) => group.name === searchGroup.value)
-  if (match) {
-    selectedGroup.value = match
+  selectedGroup.value = match || null
+  if (selectedGroup.value) {
     fetchDocuments()
+    if (selectedFca.value) {
+      currentStep.value = 1
+    }
   }
 }
 
@@ -400,6 +417,16 @@ onMounted(async () => {
       }
     }
   }
+
+  if (selectedFca.value && selectedGroup.value) {
+    currentStep.value = 1
+  }
+})
+
+const modalSize = computed(() => {
+  if (!selectedDocForModal.value) return 'lg'
+  const hasTable = selectedDocForModal.value.schema?.some((f) => f.field_type === 'table')
+  return hasTable ? 'xl' : 'lg'
 })
 </script>
 
@@ -408,7 +435,7 @@ onMounted(async () => {
     <BreadcrumbNav :items="[{ label: 'Home', to: '/' }, { label: 'Generate Documents' }]" />
     
     <div class="wizard-header">
-      <h1 class="form-title">Generate Documents</h1>
+      <!-- <h1 class="form-title">Generate Documents</h1> -->
       <Stepper :steps="steps" :currentStep="currentStep" />
     </div>
 
@@ -417,6 +444,7 @@ onMounted(async () => {
       <div class="form-group">
         <label for="fcaInput">FCA</label>
         <v-select
+          id="fcaInput"
           v-model="searchFca"
           :options="fcas"
           label="name"
@@ -430,6 +458,7 @@ onMounted(async () => {
       <div class="form-group">
         <label for="groupInput">Group</label>
         <v-select
+          id="groupInput"
           v-model="searchGroup"
           :options="groups"
           label="name"
@@ -438,6 +467,12 @@ onMounted(async () => {
           placeholder="Search group..."
           clearable
         />
+      </div>
+
+      <div class="selection-actions" v-if="canProceed">
+        <button class="btn btn-primary" type="button" @click="proceedToDocuments">
+          Proceed to Choose Documents
+        </button>
       </div>
     </div>
 
@@ -483,7 +518,7 @@ onMounted(async () => {
     <Modal 
       v-if="showModal" 
       :title="selectedDocForModal?.name" 
-      size="lg" 
+      :size="modalSize" 
       @close="closeModal"
     >
       <form @submit.prevent="submitForm">
@@ -507,11 +542,37 @@ onMounted(async () => {
 
 <style scoped>
 .wizard-header {
+  margin-top: 2rem;
   margin-bottom: 2rem;
 }
 
 .wizard-step {
   animation: fadeIn 300ms ease-out;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin-bottom: 1.5rem;
+}
+
+.form-group label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--heading);
+}
+
+.step-actions {
+  margin-bottom: 1.25rem;
+  display: flex;
+  gap: 0.75rem;
+}
+
+.selection-actions {
+  margin-top: 1.5rem;
+  display: flex;
+  gap: 0.75rem;
 }
 
 .section-header {
@@ -531,13 +592,13 @@ onMounted(async () => {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 0.75rem;
-  padding: 1rem;
+  padding: 1rem 1.25rem;
 }
 
 .doc-info {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.35rem;
 }
 
 .doc-name {
@@ -554,11 +615,21 @@ onMounted(async () => {
   width: fit-content;
 }
 
+.document-actions {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 0.75rem !important;
+}
+
+.document-actions .btn + .btn {
+  margin-left: 0.75rem !important;
+}
+
 .modal-form-scroll {
-  max-height: 60vh;
+  max-height: 72vh;
   overflow-y: auto;
-  padding: 1rem;
-  margin: 0 -1rem;
+  padding: 0.75rem 0.25rem;
 }
 
 @keyframes fadeIn {

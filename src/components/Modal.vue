@@ -10,7 +10,7 @@
             aria-label="Close"
             @click="$emit('close')"
           >
-            x
+            ✕
           </button>
         </div>
         <slot />
@@ -23,7 +23,7 @@
 defineProps({
   title: String,
   size: { type: String, default: 'md' },
-  persistent: { type: Boolean, default: false }
+  persistent: { type: Boolean, default: false },
 })
 defineEmits(['close'])
 </script>
@@ -34,7 +34,9 @@ defineEmits(['close'])
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  margin-bottom: 1rem;
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border);
 }
 
 .modal-title {
@@ -46,9 +48,25 @@ defineEmits(['close'])
 
 .modal-close {
   flex: 0 0 auto;
+  font-size: 1.1rem;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.modal-close:hover {
+  background: var(--bg-muted);
+  color: var(--text);
 }
 
-.modal-sm { max-width: 360px; }
-.modal-md { max-width: 440px; }
-.modal-lg { max-width: 600px; }
+.modal-sm { max-width: 420px; }
+.modal-md { max-width: 580px; }
+.modal-lg { max-width: 860px; }
+.modal-xl { max-width: 1140px; }
+.modal-full { max-width: 95vw; }
 </style>

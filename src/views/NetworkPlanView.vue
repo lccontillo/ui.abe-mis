@@ -32,7 +32,7 @@
           <section class="config-section">
             <div class="section-head">
               <div class="section-title">
-                <span class="icon-label">🛣️ Road Network</span>
+                <span class="icon-label"><Road20 class="section-icon" /> Road Network</span>
               </div>
               <span class="badge badge-neutral" id="statRoadFeatures">
                 {{ roadFeaturesCount > 0 ? `${roadFeaturesCount} feat.` : '—' }}
@@ -76,14 +76,14 @@
           <section class="config-section">
             <div class="section-head">
               <div class="section-title">
-                <span class="icon-label">🗺️ Land Use Map</span>
+                <span class="icon-label"><Map20 class="section-icon" /> Land Use Map</span>
               </div>
               <div class="section-badges">
                 <span class="badge badge-neutral">
                   {{ landUsePolyCount > 0 ? `${landUsePolyCount} poly.` : '—' }}
                 </span>
                 <span v-if="isLandUsePersisted" class="badge badge-info" title="Persisted in browser storage">
-                  📌 Saved
+                  Saved
                 </span>
               </div>
             </div>
@@ -141,7 +141,7 @@
 
           <!-- Quick Stats Section -->
           <section class="config-section">
-            <div class="section-title">📊 Quick Metrics</div>
+            <div class="section-title"><ChartCombo20 class="section-icon" /> Quick Metrics</div>
             <div class="stats-grid">
               <div class="stat-card">
                 <span class="stat-card-label">Road Length</span>
@@ -160,7 +160,7 @@
 
           <!-- Parameters & Actions -->
           <section class="config-section">
-            <div class="section-title">⚙️ Analysis Parameters</div>
+            <div class="section-title"><Settings20 class="section-icon" /> Analysis Parameters</div>
             
             <div class="param-row">
               <label class="param-label" for="buffer-input">Buffer Distance (per side)</label>
@@ -238,7 +238,7 @@
 
           <!-- Proposal Save Section -->
           <section class="config-section">
-            <div class="section-title">💾 Save Proposal</div>
+            <div class="section-title"><Save20 class="section-icon" /> Save Proposal</div>
             <div class="proposal-inputs">
               <input 
                 v-model.trim="proposalName" 
@@ -253,11 +253,11 @@
                 class="field-control-sm" 
               />
               <select v-model="proposalStatus" class="field-control-sm">
-                <option value="Draft">📝 Draft</option>
-                <option value="For Review">🔍 For Review</option>
-                <option value="Approved">✅ Approved</option>
-                <option value="Funded">💰 Funded</option>
-                <option value="Completed">🏁 Completed</option>
+                <option value="Draft">Draft</option>
+                <option value="For Review">For Review</option>
+                <option value="Approved">Approved</option>
+                <option value="Funded">Funded</option>
+                <option value="Completed">Completed</option>
               </select>
               <button 
                 type="button" 
@@ -273,7 +273,7 @@
 
           <!-- Export Section -->
           <section class="config-section">
-            <div class="section-title">📤 Export Data</div>
+            <div class="section-title"><DocumentExport20 class="section-icon" /> Export Data</div>
             <div class="export-buttons">
               <button 
                 type="button" 
@@ -298,7 +298,7 @@
 
           <!-- Saved Proposals Quick Dropdown -->
           <section class="config-section">
-            <div class="section-title">📂 Saved Proposals ({{ proposals.length }})</div>
+            <div class="section-title"><Document20 class="section-icon" /> Saved Proposals ({{ proposals.length }})</div>
             <select 
               v-model="selectedProposalId" 
               class="field-control-sm"
@@ -538,7 +538,7 @@
 
                 <div class="report-details-grid">
                   <div class="panel-section">
-                    <h4 class="panel-title">📋 Executive Narrative</h4>
+                    <h4 class="panel-title"><Document20 class="panel-icon" /> Executive Narrative</h4>
                     <div class="narrative-content">
                       <p>
                         The proposed <strong>{{ costEstimate.roadType }}</strong> spans a length of 
@@ -558,7 +558,7 @@
                   </div>
 
                   <div class="panel-section">
-                    <h4 class="panel-title">💰 Investment & Economic Feasibility</h4>
+                    <h4 class="panel-title"><ChartCombo20 class="panel-icon" /> Investment & Economic Feasibility</h4>
                     <table class="cost-table">
                       <tbody>
                         <tr>
@@ -591,7 +591,7 @@
               </div>
               <div v-else class="proposals-list">
                 <div v-for="prop in proposals" :key="prop.id" class="proposal-card">
-                  <div class="prop-icon">📄</div>
+                  <div class="prop-icon"><Document20 /></div>
                   <div class="prop-info">
                     <div class="prop-title-row">
                       <strong class="prop-name">{{ prop.name }}</strong>
@@ -646,6 +646,8 @@ import {
   ChartCombo20,
   ChevronUp20,
   WarningAlt20,
+  Document20,
+  Settings20,
 } from '@carbon/icons-vue'
 import { useToast } from '@/composables/useToast'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
@@ -660,7 +662,7 @@ const { toast, success, warning, error, info } = useToast()
 const { confirm } = useConfirmDialog()
 
 // Coordinates and State
-const currentCoordinates = ref('📍 Click map for coordinates')
+const currentCoordinates = ref('Click map for coordinates')
 const mapContainer = ref(null)
 let map = null
 
@@ -1089,7 +1091,7 @@ function initMap() {
   map.on('click', e => {
     const lat = e.latlng.lat.toFixed(5)
     const lng = e.latlng.lng.toFixed(5)
-    currentCoordinates.value = `📍 ${lat}°N, ${lng}°E`
+    currentCoordinates.value = `${lat}°N, ${lng}°E`
   })
 }
 
@@ -2214,12 +2216,35 @@ onBeforeUnmount(() => {
   color: var(--text);
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.45rem;
   margin-bottom: 0.5rem;
 }
 
 .section-head .section-title {
   margin-bottom: 0;
+}
+
+.icon-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.section-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.panel-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 0.35rem;
 }
 
 .section-badges {
@@ -2598,11 +2623,14 @@ onBeforeUnmount(() => {
   background: var(--bg-elevated);
   color: var(--text-muted);
   border: 1px solid var(--border);
-  padding: 3px 12px;
+  padding: 4px 14px;
   border-radius: 20px;
   font-size: 0.72rem;
   pointer-events: none;
   box-shadow: var(--shadow-sm);
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
 }
 
 /* Results Drawer */

@@ -35,7 +35,7 @@
           <!-- 1. Search Farm Areas -->
           <section class="panel-section">
             <div class="section-title">
-              <span class="icon-label">🔍 Search Farm Areas</span>
+              <span class="icon-label"><Search20 class="section-icon" /> Search Farm Areas</span>
             </div>
             <div class="search-input-group">
               <input
@@ -62,40 +62,40 @@
               >
                 <div v-if="result.type === 'gpx'">
                   <div class="result-header">
-                    <span class="result-name truncate">📁 {{ result.data.name }}</span>
+                    <span class="result-name truncate"><Document20 class="item-inline-icon" /> {{ result.data.name }}</span>
                     <span class="badge badge-success">{{ fmt4(result.data.areaHectares) }} ha</span>
                   </div>
                   <div class="result-meta">
-                    👤 <strong>{{ result.derivedName || result.data.name }}</strong>
+                    <UserProfile20 class="item-inline-icon" /> <strong>{{ result.derivedName || result.data.name }}</strong>
                   </div>
                   <div class="result-coords font-mono">
-                    📍 {{ result.data.center.lat.toFixed(5) }}, {{ result.data.center.lng.toFixed(5) }}
+                    <Location20 class="item-inline-icon" /> {{ result.data.center.lat.toFixed(5) }}, {{ result.data.center.lng.toFixed(5) }}
                   </div>
                   <div class="result-actions-row">
                     <button type="button" class="btn btn-sm btn-secondary" @click.stop="openSearchInfo(result)">
-                      📋 Details
+                      <Document20 class="btn-icon" /> Details
                     </button>
                     <button type="button" class="btn btn-sm btn-primary" @click.stop="flyToGPX(result.data)">
-                      🎯 Locate
+                      <Location20 class="btn-icon" /> Locate
                     </button>
                   </div>
                 </div>
 
                 <div v-else>
                   <div class="result-header">
-                    <span class="result-name truncate">👨‍🌾 {{ result.data.name }}</span>
+                    <span class="result-name truncate"><UserProfile20 class="item-inline-icon" /> {{ result.data.name }}</span>
                     <span class="badge badge-success">{{ fmt4(result.data.area) }} ha</span>
                   </div>
-                  <div class="result-meta">📍 {{ result.data.location || 'Alcala, Cagayan' }}</div>
+                  <div class="result-meta"><Location20 class="item-inline-icon" /> {{ result.data.location || 'Alcala, Cagayan' }}</div>
                   <div v-if="result.data.commodity" class="result-meta">
-                    {{ commodityIcon(result.data.commodity) }} {{ result.data.commodity }}
+                    {{ result.data.commodity }}
                   </div>
                   <div class="result-actions-row">
                     <button type="button" class="btn btn-sm btn-secondary" @click.stop="openSearchInfo(result)">
-                      📋 Details
+                      <Document20 class="btn-icon" /> Details
                     </button>
                     <button type="button" class="btn btn-sm btn-primary" @click.stop="flyToResult(result)">
-                      🎯 Locate
+                      <Location20 class="btn-icon" /> Locate
                     </button>
                   </div>
                 </div>
@@ -110,7 +110,7 @@
           <section class="panel-section">
             <div class="section-head">
               <div class="section-title">
-                <span class="icon-label">📁 Batch GPX Upload</span>
+                <span class="icon-label"><Upload20 class="section-icon" /> Batch GPX Upload</span>
               </div>
               <button 
                 type="button" 
@@ -152,7 +152,9 @@
                   <div class="progress-info">
                     <span class="prog-name truncate">{{ prog.name }}</span>
                     <span class="prog-status" :class="prog.status">
-                      {{ prog.status === 'done' ? '✅' : prog.status === 'error' ? '❌' : '⏳' }}
+                      <CheckmarkFilled20 v-if="prog.status === 'done'" class="text-success" />
+                      <ErrorFilled20 v-else-if="prog.status === 'error'" class="text-danger" />
+                      <Time20 v-else />
                     </span>
                   </div>
                   <div class="progress-bar-track">
@@ -164,13 +166,13 @@
               <!-- Uploaded Files List -->
               <div v-if="uploadedFiles.length > 0" class="uploaded-files-block">
                 <div class="files-header-row">
-                  <span class="sub-section-title">📂 Uploaded Files ({{ uploadedFiles.length }})</span>
+                  <span class="sub-section-title"><Document20 class="section-icon" /> Uploaded Files ({{ uploadedFiles.length }})</span>
                   <div class="bulk-btns">
                     <button type="button" class="btn btn-sm btn-secondary" @click="showAllFiles" title="Show all on map">
-                      👁️ All
+                      <View20 class="btn-icon" /> All
                     </button>
                     <button type="button" class="btn btn-sm btn-secondary" @click="hideAllFiles" title="Hide all from map">
-                      🙈 Hide
+                      <ViewOff20 class="btn-icon" /> Hide
                     </button>
                     <button type="button" class="btn btn-sm btn-danger" @click="removeAllFiles" title="Clear list">
                       <TrashCan16 />
@@ -194,17 +196,17 @@
                     </div>
 
                     <div class="gpx-meta-row font-mono">
-                      <span>📍 {{ file.center.lat.toFixed(4) }}, {{ file.center.lng.toFixed(4) }}</span>
-                      <span>📐 {{ file.areaHectares.toFixed(4) }} ha</span>
+                      <span><Location20 class="item-inline-icon" /> {{ file.center.lat.toFixed(4) }}, {{ file.center.lng.toFixed(4) }}</span>
+                      <span>{{ file.areaHectares.toFixed(4) }} ha</span>
                     </div>
 
                     <div class="gpx-actions-row">
                       <span class="method-tag" :class="{ enclosed: file.isEnclosed }">
-                        {{ file.isEnclosed ? '🔲 Enclosed' : '⬜ Convex Hull' }}
+                        {{ file.isEnclosed ? 'Enclosed Track' : 'Convex Hull' }}
                       </span>
                       <div class="btn-group-right">
                         <button type="button" class="btn btn-sm btn-primary" title="Zoom to track" @click="fitToFile(index)">
-                          🎯
+                          <Location20 class="btn-icon" />
                         </button>
                         <button 
                           type="button" 
@@ -212,7 +214,8 @@
                           :title="file.visible ? 'Hide from map' : 'Show on map'" 
                           @click="toggleFileVisibility(index)"
                         >
-                          {{ file.visible ? '👁️' : '👁️‍🗨️' }}
+                          <View20 v-if="file.visible" class="btn-icon" />
+                          <ViewOff20 v-else class="btn-icon" />
                         </button>
                         <button type="button" class="btn btn-sm btn-danger" title="Remove from list" @click="removeFile(index)">
                           <TrashCan16 />
@@ -229,7 +232,7 @@
           <section class="panel-section">
             <div class="section-head">
               <div class="section-title">
-                <span class="icon-label">👨‍🌾 Register Farmer</span>
+                <span class="icon-label"><UserProfile20 class="section-icon" /> Register Farmer</span>
               </div>
               <button 
                 type="button" 
@@ -244,7 +247,7 @@
               <!-- Auto-fill from GPX dropdown -->
               <div v-if="uploadedFiles.length > 0" class="autofill-accordion">
                 <div class="autofill-accordion-header" @click="autofillExpanded = !autofillExpanded">
-                  <span>📋 Auto-fill from GPX Track ({{ uploadedFiles.length }})</span>
+                  <span><Document20 class="item-inline-icon" /> Auto-fill from GPX Track ({{ uploadedFiles.length }})</span>
                   <span class="chevron">{{ autofillExpanded ? '▲' : '▼' }}</span>
                 </div>
                 <div v-show="autofillExpanded" class="autofill-list">
@@ -255,7 +258,7 @@
                   >
                     <div class="autofill-info" @click="autoFillFromGPX(idx)">
                       <span class="autofill-file-name truncate">{{ file.name }}</span>
-                      <span class="autofill-derived-name">👤 {{ deriveNameFromGPX(file.name) }}</span>
+                      <span class="autofill-derived-name"><UserProfile20 class="item-inline-icon" /> {{ deriveNameFromGPX(file.name) }}</span>
                     </div>
                     <span class="badge badge-success">{{ file.areaHectares.toFixed(4) }} ha</span>
                     <button 
@@ -284,13 +287,13 @@
               <div class="form-row-sm">
                 <label class="field-label-sm">Commodity</label>
                 <select v-model="newFarmer.commodity" class="field-control-sm">
-                  <option value="Rice">🌾 Rice</option>
-                  <option value="Corn">🌽 Corn</option>
-                  <option value="Vegetables">🥬 Vegetables</option>
-                  <option value="Fruits">🍌 Fruits</option>
-                  <option value="Tobacco">🍂 Tobacco</option>
-                  <option value="Mixed">🌾🌽 Mixed Crops</option>
-                  <option value="Other">📦 Other</option>
+                  <option value="Rice">Rice</option>
+                  <option value="Corn">Corn</option>
+                  <option value="Vegetables">Vegetables</option>
+                  <option value="Fruits">Fruits</option>
+                  <option value="Tobacco">Tobacco</option>
+                  <option value="Mixed">Mixed Crops</option>
+                  <option value="Other">Other</option>
                 </select>
               </div>
 
@@ -307,7 +310,7 @@
                   <span class="unit-text">ha</span>
                 </div>
                 <div v-if="autoPopulatedArea" class="autofill-notice">
-                  ✅ Auto-filled from track ({{ autoPopulatedArea.toFixed(4) }} ha)
+                  <CheckmarkFilled20 class="item-inline-icon text-success" /> Auto-filled from track ({{ autoPopulatedArea.toFixed(4) }} ha)
                 </div>
               </div>
 
@@ -327,7 +330,7 @@
           <section class="panel-section">
             <div class="section-head">
               <div class="section-title">
-                <span class="icon-label">👨‍🌾 Farmers ({{ farmers.length }})</span>
+                <span class="icon-label"><UserProfile20 class="section-icon" /> Farmers ({{ farmers.length }})</span>
               </div>
             </div>
 
@@ -335,14 +338,14 @@
             <div class="filter-row-sm">
               <label class="field-label-sm" for="filterCommoditySelect">Filter Commodity:</label>
               <select id="filterCommoditySelect" v-model="commodityFilter" class="field-control-sm">
-                <option value="All">🌾 All Commodities</option>
-                <option value="Rice">🌾 Rice</option>
-                <option value="Corn">🌽 Corn</option>
-                <option value="Vegetables">🥬 Vegetables</option>
-                <option value="Fruits">🍌 Fruits</option>
-                <option value="Tobacco">🍂 Tobacco</option>
-                <option value="Mixed">🌾🌽 Mixed</option>
-                <option value="Other">📦 Other</option>
+                <option value="All">All Commodities</option>
+                <option value="Rice">Rice</option>
+                <option value="Corn">Corn</option>
+                <option value="Vegetables">Vegetables</option>
+                <option value="Fruits">Fruits</option>
+                <option value="Tobacco">Tobacco</option>
+                <option value="Mixed">Mixed Crops</option>
+                <option value="Other">Other</option>
               </select>
             </div>
 
@@ -357,22 +360,22 @@
                   <span class="badge badge-success">{{ fmt4(farmer.area) }} ha</span>
                 </div>
                 <div class="farmer-card-location">
-                  📍 {{ farmer.location || 'Alcala, Cagayan' }}
+                  <Location20 class="item-inline-icon" /> {{ farmer.location || 'Alcala, Cagayan' }}
                 </div>
                 <div class="farmer-badges-row">
                   <span class="commodity-tag" :class="'commodity-' + (farmer.commodity || 'other').toLowerCase()">
-                    {{ commodityIcon(farmer.commodity) }} {{ farmer.commodity || '—' }}
+                    {{ farmer.commodity || '—' }}
                   </span>
                   <span class="badge badge-neutral">
-                    📋 {{ farmer.parcels ? farmer.parcels.length : 1 }} parcel(s)
+                    {{ farmer.parcels ? farmer.parcels.length : 1 }} parcel(s)
                   </span>
                 </div>
                 <div class="farmer-card-actions">
                   <button type="button" class="btn btn-sm btn-primary" title="Fly to farmer" @click="locateFarmer(farmers.indexOf(farmer))">
-                    📍 Locate
+                    <Location20 class="btn-icon" /> Locate
                   </button>
                   <button type="button" class="btn btn-sm btn-secondary" title="Edit farmer parcels" @click="editFarmer(farmers.indexOf(farmer))">
-                    ✏️ Edit
+                    <Edit20 class="btn-icon" /> Edit
                   </button>
                   <button type="button" class="btn btn-sm btn-danger" title="Delete farmer" @click="removeFarmer(farmers.indexOf(farmer))">
                     <TrashCan16 />
@@ -389,7 +392,7 @@
           <!-- 5. Data Export Section -->
           <section class="panel-section">
             <div class="section-title">
-              <span class="icon-label">💾 Data Export</span>
+              <span class="icon-label"><DocumentExport20 class="section-icon" /> Data Export</span>
             </div>
             <div class="export-btn-group">
               <button type="button" class="btn btn-secondary btn-sm btn-block" @click="exportFarmersCSV">
@@ -420,7 +423,7 @@
         <!-- Floating Map Tool Controls -->
         <div class="map-floating-controls">
           <button type="button" class="map-tool-btn" title="Reset View to Alcala" @click="resetView">
-            🏠
+            <Home20 />
           </button>
           <button 
             type="button" 
@@ -429,19 +432,19 @@
             :title="drawMode ? 'Drawing mode active - click on map' : 'Draw farm area polygon'" 
             @click="toggleDrawMode"
           >
-            ✏️
+            <Edit20 />
           </button>
           <button type="button" class="map-tool-btn" :title="'Base layer: ' + currentLayer" @click="toggleLayer">
-            {{ layerIcon }}
+            <Map20 />
           </button>
           <button type="button" class="map-tool-btn" title="Extra tile layers (Voyager, Positron, Topo)" @click="cycleExtraLayers">
-            {{ extraLayerIcon }}
+            <Earth20 />
           </button>
           <button type="button" class="map-tool-btn" title="Measure area of drawn points" @click="measureArea">
-            📐
+            <Location20 />
           </button>
           <button type="button" class="map-tool-btn" title="Clear drawn points and lines" @click="clearDrawnMarkers">
-            🧹
+            <Reset20 />
           </button>
           <button 
             type="button" 
@@ -450,24 +453,26 @@
             title="Toggle Density Heatmap" 
             @click="toggleHeatmap"
           >
-            🔥
+            <View20 />
           </button>
         </div>
 
         <!-- Bottom Map Status Bar -->
         <div class="map-status-pill">
-          <span>🔍 Zoom: {{ currentZoom }}</span>
-          <span>📍 {{ centerLat.toFixed(4) }}, {{ centerLng.toFixed(4) }}</span>
-          <span>👨‍🌾 {{ farmers.length }} farmers</span>
-          <span>📁 {{ uploadedFiles.length }} GPX</span>
-          <span v-if="drawMode" class="draw-indicator">✏️ Draw mode ON — click map</span>
+          <span>Zoom: {{ currentZoom }}</span>
+          <span><Location20 class="item-inline-icon" /> {{ centerLat.toFixed(4) }}, {{ centerLng.toFixed(4) }}</span>
+          <span><UserProfile20 class="item-inline-icon" /> {{ farmers.length }} farmers</span>
+          <span><Document20 class="item-inline-icon" /> {{ uploadedFiles.length }} GPX</span>
+          <span v-if="drawMode" class="draw-indicator">
+            <Edit20 class="item-inline-icon" /> Draw mode ON — click map
+          </span>
         </div>
       </main>
     </div>
 
     <!-- Bottom App Status Bar -->
     <!-- <footer class="app-status-bar">
-      <span>🌾 FarmArea GIS - Alcala · Municipal Agriculture Office</span>
+      <span>FarmArea GIS - Alcala · Municipal Agriculture Office</span>
       <span class="status-msg" :class="'msg-' + statusType">{{ statusMessage }}</span>
     </footer> -->
 
@@ -475,7 +480,7 @@
     <div v-if="searchInfoItem" class="modal-overlay" @click.self="closeSearchInfo">
       <div class="modal-dialog">
         <div class="modal-header">
-          <h3 class="modal-title">📋 Attribute Info</h3>
+          <h3 class="modal-title"><Document20 class="modal-title-icon" /> Attribute Info</h3>
           <button type="button" class="btn-close-modal" @click="closeSearchInfo">✕</button>
         </div>
 
@@ -483,21 +488,21 @@
         <div v-if="searchInfoItem.type === 'gpx'" class="attr-table-wrap">
           <table class="attr-table">
             <tbody>
-              <tr><th>📁 File Name</th><td>{{ searchInfoItem.data.name }}</td></tr>
-              <tr><th>👤 Derived Farmer</th><td>{{ searchInfoItem.derivedName || searchInfoItem.data.name }}</td></tr>
-              <tr><th>📍 Center Lat</th><td class="font-mono">{{ searchInfoItem.data.center.lat.toFixed(6) }}</td></tr>
-              <tr><th>📍 Center Lng</th><td class="font-mono">{{ searchInfoItem.data.center.lng.toFixed(6) }}</td></tr>
-              <tr><th>📐 Area (ha)</th><td class="font-mono">{{ fmt4(searchInfoItem.data.areaHectares) }} ha</td></tr>
-              <tr><th>📏 Area (km²)</th><td class="font-mono">{{ fmt4(searchInfoItem.data.areaKm2) }} km²</td></tr>
+              <tr><th>File Name</th><td>{{ searchInfoItem.data.name }}</td></tr>
+              <tr><th>Derived Farmer</th><td>{{ searchInfoItem.derivedName || searchInfoItem.data.name }}</td></tr>
+              <tr><th>Center Lat</th><td class="font-mono">{{ searchInfoItem.data.center.lat.toFixed(6) }}</td></tr>
+              <tr><th>Center Lng</th><td class="font-mono">{{ searchInfoItem.data.center.lng.toFixed(6) }}</td></tr>
+              <tr><th>Area (ha)</th><td class="font-mono">{{ fmt4(searchInfoItem.data.areaHectares) }} ha</td></tr>
+              <tr><th>Area (km²)</th><td class="font-mono">{{ fmt4(searchInfoItem.data.areaKm2) }} km²</td></tr>
               <tr>
-                <th>🔲 Track Geometry</th>
+                <th>Track Geometry</th>
                 <td>
                   <span class="badge" :class="searchInfoItem.data.isEnclosed ? 'badge-success' : 'badge-neutral'">
-                    {{ searchInfoItem.data.isEnclosed ? '🔲 Enclosed' : '⬜ Convex Hull' }}
+                    {{ searchInfoItem.data.isEnclosed ? 'Enclosed Track' : 'Convex Hull' }}
                   </span>
                 </td>
               </tr>
-              <tr><th>📊 Point Count</th><td>{{ searchInfoItem.data.pointCount }} coordinates</td></tr>
+              <tr><th>Point Count</th><td>{{ searchInfoItem.data.pointCount }} coordinates</td></tr>
             </tbody>
           </table>
         </div>
@@ -506,14 +511,14 @@
         <div v-else class="attr-table-wrap">
           <table class="attr-table">
             <tbody>
-              <tr><th>👨‍🌾 Name</th><td><strong>{{ searchInfoItem.data.name }}</strong></td></tr>
-              <tr><th>📍 Location</th><td>{{ searchInfoItem.data.location || 'Alcala, Cagayan' }}</td></tr>
+              <tr><th>Name</th><td><strong>{{ searchInfoItem.data.name }}</strong></td></tr>
+              <tr><th>Location</th><td>{{ searchInfoItem.data.location || 'Alcala, Cagayan' }}</td></tr>
               <tr>
                 <th>Commodity</th>
-                <td>{{ commodityIcon(searchInfoItem.data.commodity) }} {{ searchInfoItem.data.commodity || '—' }}</td>
+                <td>{{ searchInfoItem.data.commodity || '—' }}</td>
               </tr>
-              <tr><th>🌾 Total Area</th><td class="font-mono">{{ fmt4(searchInfoItem.data.area) }} ha</td></tr>
-              <tr><th>📋 Total Parcels</th><td>{{ searchInfoItem.data.parcels ? searchInfoItem.data.parcels.length : 1 }} parcel(s)</td></tr>
+              <tr><th>Total Area</th><td class="font-mono">{{ fmt4(searchInfoItem.data.area) }} ha</td></tr>
+              <tr><th>Total Parcels</th><td>{{ searchInfoItem.data.parcels ? searchInfoItem.data.parcels.length : 1 }} parcel(s)</td></tr>
               <tr v-if="searchInfoItem.data.parcels && searchInfoItem.data.parcels.length > 0">
                 <td colspan="2">
                   <div class="parcel-subtable">
@@ -529,7 +534,7 @@
 
         <div class="modal-footer">
           <button type="button" class="btn btn-primary btn-sm" @click="flyToResult(searchInfoItem)">
-            🎯 Zoom on Map
+            <Location20 class="btn-icon" /> Zoom on Map
           </button>
           <button type="button" class="btn btn-secondary btn-sm" @click="closeSearchInfo">
             Close
@@ -542,7 +547,7 @@
     <div v-if="pendingDuplicateFile" class="modal-overlay" @click.self="confirmDuplicateUpload(false)">
       <div class="modal-dialog modal-dialog-sm">
         <div class="modal-header">
-          <h3 class="modal-title text-warning">⚠️ Duplicate GPX Detected</h3>
+          <h3 class="modal-title text-warning"><WarningFilled20 class="modal-title-icon" /> Duplicate GPX Detected</h3>
         </div>
         <p class="modal-desc">
           The file <strong>{{ pendingDuplicateFile.name }}</strong> has coordinates that closely match an already uploaded GPX track.
@@ -552,10 +557,10 @@
         </p>
         <div class="modal-footer">
           <button type="button" class="btn btn-primary btn-sm" @click="confirmDuplicateUpload(true)">
-            ✅ Yes, Upload Anyway
+            Yes, Upload Anyway
           </button>
           <button type="button" class="btn btn-danger btn-sm" @click="confirmDuplicateUpload(false)">
-            🚫 Skip File
+            Skip File
           </button>
         </div>
       </div>
@@ -565,7 +570,7 @@
     <div v-if="editingFarmer" class="modal-overlay" @click.self="editingFarmer = null">
       <div class="modal-dialog">
         <div class="modal-header">
-          <h3 class="modal-title">✏️ Edit Farmer Profile</h3>
+          <h3 class="modal-title"><Edit20 class="modal-title-icon" /> Edit Farmer Profile</h3>
           <button type="button" class="btn-close-modal" @click="editingFarmer = null">✕</button>
         </div>
 
@@ -583,22 +588,22 @@
           <div class="form-row-sm">
             <label class="field-label-sm">Commodity</label>
             <select v-model="editingFarmer.commodity" class="field-control-sm">
-              <option value="Rice">🌾 Rice</option>
-              <option value="Corn">🌽 Corn</option>
-              <option value="Vegetables">🥬 Vegetables</option>
-              <option value="Fruits">🍌 Fruits</option>
-              <option value="Tobacco">🍂 Tobacco</option>
-              <option value="Mixed">🌾🌽 Mixed Crops</option>
-              <option value="Other">📦 Other</option>
+              <option value="Rice">Rice</option>
+              <option value="Corn">Corn</option>
+              <option value="Vegetables">Vegetables</option>
+              <option value="Fruits">Fruits</option>
+              <option value="Tobacco">Tobacco</option>
+              <option value="Mixed">Mixed Crops</option>
+              <option value="Other">Other</option>
             </select>
           </div>
 
           <!-- Multi-Parcel Management -->
           <div class="parcels-editor-section">
             <div class="section-head">
-              <label class="field-label-sm">📋 Parcels ({{ editingFarmer.parcels ? editingFarmer.parcels.length : 0 }})</label>
+              <label class="field-label-sm">Parcels ({{ editingFarmer.parcels ? editingFarmer.parcels.length : 0 }})</label>
               <button type="button" class="btn btn-sm btn-secondary" @click="addParcel(editingFarmer)">
-                ➕ Add Parcel
+                <Add20 class="btn-icon" /> Add Parcel
               </button>
             </div>
 
@@ -652,6 +657,17 @@ import {
   DocumentExport20,
   Earth20,
   ChevronLeft20,
+  Document20,
+  UserProfile20,
+  View20,
+  ViewOff20,
+  Edit20,
+  Home20,
+  Reset20,
+  CheckmarkFilled20,
+  ErrorFilled20,
+  Time20,
+  WarningFilled20,
 } from '@carbon/icons-vue'
 import { useToast } from '@/composables/useToast'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
@@ -671,7 +687,7 @@ const uploadPanelCollapsed = ref(false)
 const registerPanelCollapsed = ref(false)
 const autofillExpanded = ref(false)
 
-const currentCoordinates = ref('📍 17.9021°N, 121.6560°E')
+const currentCoordinates = ref('17.9021°N, 121.6560°E')
 const currentZoom = ref(13)
 const centerLat = ref(17.9021)
 const centerLng = ref(121.6560)
@@ -807,7 +823,7 @@ function initMap() {
     const c = map.getCenter()
     centerLat.value = c.lat
     centerLng.value = c.lng
-    currentCoordinates.value = `📍 ${c.lat.toFixed(4)}°N, ${c.lng.toFixed(4)}°E`
+    currentCoordinates.value = `${c.lat.toFixed(4)}°N, ${c.lng.toFixed(4)}°E`
   })
 
   map.on('click', (e) => {
@@ -834,7 +850,7 @@ function addFarmerMarker(farmer, lat, lng, parcelIndex = 0) {
   const color = parcelColors[parcelIndex % parcelColors.length]
   const icon = L.divIcon({
     className: 'farmer-marker-icon',
-    html: `<div style="background:${color}; width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:${isPrimary ? '15px' : '11px'}; font-weight:bold; color:white; border:2px solid white; box-shadow:0 2px 6px rgba(0,0,0,0.3);">${isPrimary ? '🌾' : parcelIndex + 1}</div>`,
+    html: `<div style="background:${color}; width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:bold; color:white; border:2px solid white; box-shadow:0 2px 6px rgba(0,0,0,0.3);">${parcelIndex + 1}</div>`,
     iconSize: [28, 28],
     iconAnchor: [14, 14]
   })
@@ -842,10 +858,9 @@ function addFarmerMarker(farmer, lat, lng, parcelIndex = 0) {
   marker._farmerRef = farmer
   marker._parcelIndex = parcelIndex
 
-  const cIcon = commodityIcon(farmer.commodity)
   let parcelsHtml = ''
   if (farmer.parcels && farmer.parcels.length > 0) {
-    parcelsHtml = '<div style="margin-top:8px; border-top:1px solid #eee; padding-top:6px; font-size:12px;"><strong>📋 Parcels:</strong><div style="margin-top:4px;">'
+    parcelsHtml = '<div style="margin-top:8px; border-top:1px solid #eee; padding-top:6px; font-size:12px;"><strong>Parcels:</strong><div style="margin-top:4px;">'
     farmer.parcels.forEach((p, i) => {
       const pColor = parcelColors[i % parcelColors.length]
       const active = i === parcelIndex ? 'font-weight:bold;' : ''
@@ -861,9 +876,9 @@ function addFarmerMarker(farmer, lat, lng, parcelIndex = 0) {
   const totalArea = farmer.parcels ? farmer.parcels.reduce((s, p) => s + (p.area || 0), 0) : farmer.area || 0
   marker.bindPopup(`
     <div style="min-width:240px; font-family: inherit; font-size: 13px;">
-      <h3 style="margin:0 0 6px; color:#2e7d32; font-size:15px;">👨‍🌾 ${escapeHtml(farmer.name)}</h3>
-      <p style="margin:2px 0;font-size:12px;color:#444;"><strong>📍</strong> ${escapeHtml(farmer.location || 'Alcala')} · ${cIcon} ${farmer.commodity || '—'}</p>
-      <p style="margin:2px 0;font-size:12px;color:#222;"><strong>🌾 Total Area:</strong> ${totalArea.toFixed(4)} ha (${farmer.parcels ? farmer.parcels.length : 1} parcel(s))</p>
+      <h3 style="margin:0 0 6px; color:#2e7d32; font-size:15px;">${escapeHtml(farmer.name)}</h3>
+      <p style="margin:2px 0;font-size:12px;color:#444;"><strong>Location:</strong> ${escapeHtml(farmer.location || 'Alcala')} · ${escapeHtml(farmer.commodity || '—')}</p>
+      <p style="margin:2px 0;font-size:12px;color:#222;"><strong>Total Area:</strong> ${totalArea.toFixed(4)} ha (${farmer.parcels ? farmer.parcels.length : 1} parcel(s))</p>
       ${parcelsHtml}
       <div style="margin-top:6px; padding-top:6px; border-top:1px solid #eee;">
         <small style="color:#777;">Parcel #${parcelIndex + 1} — ${lat.toFixed(5)}, ${lng.toFixed(5)}</small>
@@ -1961,12 +1976,34 @@ onBeforeUnmount(() => {
   color: var(--text);
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.45rem;
   margin-bottom: 0.5rem;
 }
 
 .section-head .section-title {
   margin-bottom: 0;
+}
+
+.icon-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.section-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.item-inline-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  display: inline-block;
+  vertical-align: middle;
 }
 
 .btn-text-toggle {
@@ -2019,24 +2056,39 @@ onBeforeUnmount(() => {
   font-size: 0.84rem;
   font-weight: 750;
   color: var(--heading);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
 }
 
 .result-meta {
   font-size: 0.74rem;
   color: var(--text-secondary);
   margin-top: 2px;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
 }
 
 .result-coords {
   font-size: 0.7rem;
   color: var(--text-muted);
   margin-top: 2px;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
 }
 
 .result-actions-row {
   display: flex;
   gap: 0.35rem;
   margin-top: 0.4rem;
+}
+
+.result-actions-row .btn {
+  min-height: 28px;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.75rem;
 }
 
 .no-search-results {
@@ -2358,7 +2410,7 @@ onBeforeUnmount(() => {
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 0.55rem 0.75rem;
+  padding: 0.45rem 0.65rem;
 }
 
 .farmer-card-header {
@@ -2369,35 +2421,54 @@ onBeforeUnmount(() => {
 }
 
 .farmer-title {
-  font-size: 0.84rem;
+  font-size: 0.82rem;
+  font-weight: 700;
   color: var(--heading);
 }
 
 .farmer-card-location {
   font-size: 0.72rem;
   color: var(--text-secondary);
-  margin-top: 1px;
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
 }
 
 .farmer-badges-row {
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  margin-top: 0.35rem;
+  margin-top: 0.3rem;
 }
 
 .commodity-tag {
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   font-weight: 700;
-  padding: 1px 6px;
+  padding: 1px 5px;
   border-radius: 4px;
   background: var(--bg-muted);
 }
 
 .farmer-card-actions {
   display: flex;
+  align-items: center;
   gap: 0.35rem;
-  margin-top: 0.45rem;
+  margin-top: 0.4rem;
+}
+
+.farmer-card-actions .btn {
+  min-height: 26px;
+  padding: 0.18rem 0.5rem;
+  font-size: 0.73rem;
+  line-height: 1.15;
+  border-radius: 4px;
+}
+
+.farmer-card-actions .btn .btn-icon,
+.farmer-card-actions .btn svg {
+  width: 13px;
+  height: 13px;
 }
 
 .export-btn-group {
@@ -2467,26 +2538,45 @@ onBeforeUnmount(() => {
 
 .map-status-pill {
   position: absolute;
-  bottom: 12px;
+  bottom: 14px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 400;
   background: var(--bg-elevated);
   color: var(--text-secondary);
   border: 1px solid var(--border);
-  padding: 4px 14px;
+  padding: 6px 16px;
   border-radius: 20px;
-  font-size: 0.74rem;
+  font-size: 0.75rem;
   box-shadow: var(--shadow-md);
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.85rem;
   pointer-events: none;
+  white-space: nowrap;
+  max-width: 95%;
+}
+
+.map-status-pill span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  white-space: nowrap;
+}
+
+.map-status-pill .item-inline-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  margin-right: 0;
 }
 
 .draw-indicator {
   color: #e65100;
   font-weight: 750;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
 }
 
 /* App Status Bar */

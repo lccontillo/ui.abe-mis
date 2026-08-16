@@ -140,7 +140,7 @@
     </div>
 
     <!-- Edit Modal -->
-    <Modal v-if="showEdit" title="Edit FCA Profile" size="lg" @close="closeEditModal">
+    <Modal v-if="showEdit" title="Edit FCA Profile" size="xl" @close="closeEditModal">
       <FcaForm
         :initialData="fca"
         :editMode="true"
