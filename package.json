@@ -12,8 +12,11 @@
   "dependencies": {
     "@carbon/icons-vue": "^10.99.1",
     "@floating-ui/dom": "^1.7.2",
+    "@turf/turf": "^7.4.0",
+    "chart.js": "^4.5.1",
     "client-zip": "^2.5.0",
     "fuzzysort": "^3.1.0",
+    "leaflet": "^1.9.4",
     "pinia": "^3.0.3",
     "vue": "^3.5.17",
     "vue-router": "^4.5.1",

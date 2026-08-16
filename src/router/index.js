@@ -14,7 +14,9 @@ import FcaDataView from '@/views/FcaDataView.vue'
 import Dashboard from '@/views/Dashboard.vue'
 import SettingsView from '@/views/SettingsView.vue'
 import AccountSettings from '@/views/AccountSettings.vue'
-import GISToolsView from '@/views/GISToolsView.vue'
+import NetworkPlanView from '@/views/NetworkPlanView.vue'
+// GISToolsView is deprecated in favor of NetworkPlanView
+// import GISToolsView from '@/views/GISToolsView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -70,9 +72,9 @@ const router = createRouter({
       component: DocumentSchema,
     },
     {
-      path: '/gis-tools',
-      name: 'gis-tools',
-      component: GISToolsView,
+      path: '/fmr-network-plan',
+      name: 'fmr-network-plan',
+      component: NetworkPlanView,
     },
     {
       path: '/settings',

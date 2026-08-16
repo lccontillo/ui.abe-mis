@@ -1,6 +1,13 @@
+<!-- 
+  @deprecated This component is deprecated and removed from active navigation. 
+  Preserved for historical reference and backup purposes.
+-->
 <template>
   <div class="container app-page">
-    <BreadcrumbNav :items="[{ label: 'Home', to: '/' }, { label: 'GIS Tools' }]" />
+    <div class="deprecated-banner" style="background: #fff3cd; color: #856404; padding: 10px 16px; border-radius: 6px; margin-bottom: 1rem; border: 1px solid #ffeeba; font-size: 0.9rem;">
+      ⚠️ <strong>Notice:</strong> The GIS Tools module is deprecated. Please use the new <strong>FMR Network Plan</strong> module.
+    </div>
+    <BreadcrumbNav :items="[{ label: 'Home', to: '/' }, { label: 'GIS Tools (Deprecated)' }]" />
     <TitleBar title="GIS Tools" :icon="Earth20" />
 
     <!-- Filters -->

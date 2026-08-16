@@ -8,7 +8,7 @@ import {
   Logout20,
   UserProfile20,
   Add20,
-  Earth20,
+  Road20,
   Menu20,
   Close20,
   ChevronLeft20,
@@ -157,10 +157,10 @@ watch(
             </button>
           </div>
 
-          <div class="nav-item" :class="{ active: route.path.startsWith('/gis-tools') }">
-            <RouterLink to="/gis-tools" class="nav-link" title="GIS Tools">
-              <Earth20 class="icon" />
-              <span>GIS Tools</span>
+          <div class="nav-item" :class="{ active: route.path.startsWith('/fmr-network-plan') }">
+            <RouterLink to="/fmr-network-plan" class="nav-link" title="FMR Network Plan">
+              <Road20 class="icon" />
+              <span>FMR Network Plan</span>
             </RouterLink>
           </div>
 
@@ -420,11 +420,12 @@ watch(
   opacity: 0;
   overflow: hidden;
   pointer-events: none;
+  display: none;
 }
 
 .sidebar-collapsed .logo-title {
   justify-content: center;
-  padding-inline: 0.75rem;
+  padding: 0 0 1.25rem;
 }
 
 .sidebar-collapsed .collapse-icon {
@@ -433,7 +434,14 @@ watch(
 
 .sidebar-collapsed .nav-item {
   justify-content: center;
-  padding-inline: 0.75rem;
+  padding: 0.75rem 0;
+}
+
+.sidebar-collapsed .nav-link {
+  justify-content: center;
+  gap: 0;
+  flex: 1;
+  width: 100%;
 }
 
 .sidebar-collapsed .nav-action {
@@ -441,13 +449,15 @@ watch(
 }
 
 .sidebar-collapsed .logout-section {
-  padding-inline: 0.75rem;
+  padding: 1rem 0;
 }
 
 .sidebar-collapsed .logout-btn,
 .sidebar-collapsed .collapse-btn {
   justify-content: center;
-  padding-inline: 0;
+  gap: 0;
+  width: 100%;
+  padding: 0.5rem 0;
 }
 
 .drawer-fade-enter-active,
