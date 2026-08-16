@@ -1,6 +1,8 @@
 <template>
   <div class="data-table">
-    <table>
+    <SkeletonLoader v-if="loading" type="table" />
+    <EmptyState v-else-if="!data?.length" :icon="emptyIcon" :title="emptyTitle" :description="emptyDescription" />
+    <table v-else>
       <thead>
         <tr>
           <th v-for="col in columns" :key="col.key" @click="col.sortable && onSort(col.key)">
@@ -19,17 +21,15 @@
             <slot name="actions" :row="row" />
           </td>
         </tr>
-        <tr v-if="!data?.length">
-          <td :colspan="columns.length + ($slots.actions ? 1 : 0)" class="empty-cell">
-            No records found.
-          </td>
-        </tr>
       </tbody>
     </table>
   </div>
 </template>
 
 <script setup>
+import SkeletonLoader from './SkeletonLoader.vue'
+import EmptyState from './EmptyState.vue'
+
 defineEmits(['view'])
 
 defineProps({
@@ -37,6 +37,10 @@ defineProps({
   columns: Array,
   sort: Object,
   onSort: Function,
+  loading: Boolean,
+  emptyIcon: Object,
+  emptyTitle: { type: String, default: 'No records found' },
+  emptyDescription: String
 })
 </script>
 

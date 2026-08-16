@@ -1,8 +1,9 @@
 <template>
   <form @submit.prevent="submitForm" class="fca-form app-page">
-    <h1 class="form-title">{{ editMode ? 'Edit FCA Profile' : 'New FCA Profile' }}</h1>
+    <BreadcrumbNav :items="[{ label: 'Home', to: '/' }, { label: 'FCAs', to: '/fcas' }, { label: editMode ? 'Edit FCA' : 'New FCA' }]" />
+    <TitleBar :title="editMode ? 'Edit FCA Profile' : 'New FCA Profile'" />
 
-    <section>
+    <section class="form-section panel">
       <h2 class="section-title">General Information</h2>
       <div class="row">
         <InputField v-model="form.general.name" :field="{ field_label: 'Name', properties: {} }" />
@@ -74,7 +75,7 @@
       />
     </section>
 
-    <section>
+    <section class="form-section panel">
       <h2 class="section-title">Organization Contact</h2>
       <div class="row">
         <InputField
@@ -98,7 +99,7 @@
       </div>
     </section>
 
-    <section>
+    <section class="form-section panel">
       <h2 class="section-title">Officers</h2>
       <div v-for="(officer, i) in form.officers" :key="i" class="group-block">
         <div class="row">
@@ -132,7 +133,7 @@
       <button type="button" class="add-btn" @click="addOfficer">+ Add Officer</button>
     </section>
 
-    <section>
+    <section class="form-section panel">
       <h2 class="section-title">Board of Directors (BODs)</h2>
       <div v-for="(bod, i) in form.bods" :key="i" class="group-block">
         <InputField v-model="bod.name" :field="{ field_label: 'Name', properties: {} }" />
@@ -141,8 +142,11 @@
     </section>
 
     <div class="submit-section">
-      <button class="submit-btn" type="submit" :disabled="saving">
+      <button class="btn btn-primary" type="submit" :disabled="saving">
         {{ saving ? 'Saving...' : editMode ? 'Update FCA' : 'Submit FCA' }}
+      </button>
+      <button class="btn btn-secondary" type="button" @click="$emit('close')" v-if="editMode">
+        Cancel
       </button>
     </div>
   </form>
@@ -150,10 +154,14 @@
 
 <script setup>
 import { reactive, watch, toRefs, ref, toRaw } from 'vue'
+import { useToast } from '@/composables/useToast'
+const { success, error, warning } = useToast()
 import InputField from '@/components/InputField.vue'
 import DropdownField from '@/components/DropdownField.vue'
 import DateInputField from '@/components/DateInputField.vue'
 import CheckboxField from '@/components/CheckboxField.vue'
+import BreadcrumbNav from '@/components/BreadcrumbNav.vue'
+import TitleBar from '@/components/TitleBar.vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
@@ -272,7 +280,7 @@ async function submitForm() {
   if (saving.value) return // avoid double submission
 
   if (!form.general.name) {
-    alert('Name is a required field.')
+    warning('Name is a required field.')
     saving.value = false
     return
   }
@@ -306,14 +314,14 @@ async function submitForm() {
 
     const data = await res.json()
     if (res.ok) {
-      alert(props.editMode ? 'FCA updated successfully' : 'Form submitted successfully')
+      success(props.editMode ? 'FCA updated successfully' : 'Form submitted successfully')
       emit('updated')
     } else {
-      alert(data.message || 'Submission failed')
+      error(data.message || 'Submission failed')
     }
-  } catch (error) {
-    console.error('Error:', error)
-    alert('Submission failed')
+  } catch (err) {
+    console.error('Error:', err)
+    error('Submission failed')
   } finally {
     saving.value = false
     if (!props.editMode) {

@@ -14,6 +14,8 @@ import {
   ChevronLeft20,
 } from '@carbon/icons-vue'
 import { useUserStore } from '@/stores/user'
+import ConfirmDialog from './components/ConfirmDialog.vue'
+import Toast from './components/Toast.vue'
 
 const userStore = useUserStore()
 
@@ -69,6 +71,7 @@ watch(
 </script>
 
 <template>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
   <div v-if="isLoginRoute">
     <RouterView />
   </div>
@@ -187,9 +190,11 @@ watch(
       </div>
     </aside>
 
-    <main class="main-content">
+    <main id="main-content" class="main-content">
       <RouterView />
     </main>
+    <ConfirmDialog />
+    <Toast />
   </div>
 </template>
 
@@ -223,7 +228,7 @@ watch(
   justify-content: space-between;
   border-right: 1px solid var(--border);
   box-shadow: var(--shadow-sm);
-  z-index: 900;
+  z-index: var(--z-overlay);
   transition:
     transform 200ms ease,
     width 180ms ease;
@@ -470,7 +475,7 @@ watch(
     position: fixed;
     inset: 0 0 auto;
     height: var(--topbar-height);
-    z-index: 850;
+    z-index: var(--z-sticky);
     display: flex;
     align-items: center;
     gap: 0.75rem;
@@ -491,7 +496,7 @@ watch(
   .mobile-scrim {
     position: fixed;
     inset: 0;
-    z-index: 880;
+    z-index: var(--z-overlay);
     display: block;
     border: 0;
     background: rgba(8, 13, 10, 0.58);

@@ -16,9 +16,19 @@
           <p>Use your assigned account credentials.</p>
         </div>
 
-        <form @submit.prevent="login" class="login-form">
-          <UserNameField v-model="username" />
-          <PasswordField v-model="password" />
+        <form @submit.prevent="login" class="login-form" novalidate>
+          <UserNameField 
+            v-model="username" 
+            :error="usernameError" 
+            id="username-field"
+            :aria-describedby="usernameError ? 'username-error' : null"
+          />
+          <PasswordField 
+            v-model="password" 
+            :error="passwordError"
+            id="password-field"
+            :aria-describedby="passwordError ? 'password-error' : null"
+          />
 
           <button class="btn btn-primary login-button" :disabled="loading" type="submit">
             <span>{{ loading ? 'Signing in...' : 'Login' }}</span>
@@ -47,12 +57,38 @@ import { useUserStore } from '@/stores/user'
 
 const username = ref('')
 const password = ref('')
+const usernameError = ref('')
+const passwordError = ref('')
 const error = ref('')
 const loading = ref(false)
 
 const router = useRouter()
 
+function validate() {
+  let isValid = true
+  usernameError.value = ''
+  passwordError.value = ''
+
+  if (!username.value) {
+    usernameError.value = 'Username is required'
+    isValid = false
+  }
+  if (!password.value) {
+    passwordError.value = 'Password is required'
+    isValid = false
+  }
+
+  if (!isValid) {
+    const firstError = usernameError.value ? '#username-field input' : '#password-field input'
+    document.querySelector(firstError)?.focus()
+  }
+
+  return isValid
+}
+
 async function login() {
+  if (!validate()) return
+
   loading.value = true
   error.value = ''
   try {

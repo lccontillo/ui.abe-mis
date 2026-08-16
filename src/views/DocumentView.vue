@@ -1,5 +1,6 @@
 <template>
   <div class="container app-page">
+    <BreadcrumbNav :items="[{ label: 'Home', to: '/' }, { label: 'Documents' }]" />
     <TitleBar title="Generated Documents" :icon="Document20" />
 
     <!-- Filters -->
@@ -91,6 +92,8 @@
       :columns="columns"
       :sort="{ column: sort, order }"
       :onSort="toggleSort"
+      :loading="isLoading"
+      emptyTitle="No Documents Found"
       @view="viewDocument($event.document_id, $event.fca_name, $event.group_name)"
     >
       <template #actions="{ row }">
@@ -104,21 +107,13 @@
     </DataTable>
 
     <!-- Pagination -->
-    <div class="pagination">
-      <div>
-        <button :disabled="page === 1" @click="page-- && fetchDocuments()">Prev</button>
-        <span>Page {{ page }} of {{ totalPages }}</span>
-        <button :disabled="page >= totalPages" @click="page++ && fetchDocuments()">Next</button>
-      </div>
-      <div class="limit">
-        <label>Rows per page:</label>
-        <select v-model="limit" @change="fetchDocuments()">
-          <option :value="10">10</option>
-          <option :value="25">25</option>
-          <option :value="50">50</option>
-        </select>
-      </div>
-    </div>
+    <PaginationBar 
+      :currentPage="page" 
+      :totalPages="totalPages" 
+      :perPage="limit"
+      @page-change="p => { page = p; fetchDocuments() }" 
+      @per-page-change="l => { limit = l; page = 1; fetchDocuments() }"
+    />
   </div>
 </template>
 
@@ -128,6 +123,9 @@ import { useRoute, useRouter } from 'vue-router'
 import { Document20, View20, TrashCan20 } from '@carbon/icons-vue'
 import TitleBar from '@/components/TitleBar.vue'
 import DataTable from '@/components/DataTable.vue'
+import BreadcrumbNav from '@/components/BreadcrumbNav.vue'
+import PaginationBar from '@/components/PaginationBar.vue'
+import { useConfirmDialog } from '@/composables/useConfirmDialog'
 
 const token = localStorage.getItem('token')
 const router = useRouter()
@@ -135,6 +133,8 @@ const route = useRoute()
 
 const documents = ref([])
 const total = ref(0)
+const isLoading = ref(false)
+const { confirm } = useConfirmDialog()
 
 const selectedDocument = ref('')
 const selectedFca = ref('')
@@ -199,7 +199,7 @@ function viewDocument(id, fca, group) {
 }
 
 async function deleteDocument(id) {
-  if (!confirm('Delete this document?')) return
+  if (!await confirm('Delete Document?', 'Are you sure you want to delete this document? This action cannot be undone.', 'Delete')) return
 
   try {
     const res = await fetch(`https://api-abealcala.duckdns.org/generated_document/${id}`, {
@@ -222,6 +222,7 @@ async function deleteDocument(id) {
 }
 
 async function fetchDocuments() {
+  isLoading.value = true
   const params = new URLSearchParams()
   if (selectedDocument.value) params.append('document_name', selectedDocument.value.name)
   if (selectedFca.value) params.append('fca_name', selectedFca.value.name)
@@ -238,6 +239,7 @@ async function fetchDocuments() {
   const data = await res.json()
   documents.value = data.data
   total.value = data.total
+  isLoading.value = false
 }
 
 const fetchDocs = async () => {

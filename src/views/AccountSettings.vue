@@ -12,70 +12,56 @@
   </ul>
 
   <!-- Change Password Modal -->
-  <Transition name="modal-fade">
-    <div v-if="modals.password" class="modal-overlay">
-      <div class="modal-content">
-        <h3>Change Password</h3>
-        <form @submit.prevent="updatePassword">
-          <div class="form-group">
-            <label>New Password</label>
-            <input type="password" v-model="passwordForm.new" required />
-          </div>
-          <div class="form-group">
-            <label>Confirm Password</label>
-            <input type="password" v-model="passwordForm.confirm" required />
-          </div>
-          <div v-if="passwordMismatch" class="error">Passwords do not match</div>
-          <div class="modal-actions">
-            <button type="submit" class="btn btn-primary">Update</button>
-            <button type="button" class="btn btn-secondary" @click="closeAllModals">Cancel</button>
-          </div>
-        </form>
+  <Modal v-if="modals.password" title="Change Password" size="sm" @close="closeAllModals">
+    <form @submit.prevent="updatePassword">
+      <div class="form-group">
+        <label>New Password</label>
+        <input type="password" v-model="passwordForm.new" class="field-control" required />
       </div>
-    </div>
-  </Transition>
+      <div class="form-group">
+        <label>Confirm Password</label>
+        <input type="password" v-model="passwordForm.confirm" class="field-control" required />
+      </div>
+      <div v-if="passwordMismatch" class="field-error">Passwords do not match</div>
+      <div class="modal-actions">
+        <button type="submit" class="btn btn-primary">Update</button>
+        <button type="button" class="btn btn-secondary" @click="closeAllModals">Cancel</button>
+      </div>
+    </form>
+  </Modal>
 
   <!-- Change Email Modal -->
-  <Transition name="modal-fade">
-    <div v-if="modals.email" class="modal-overlay">
-      <div class="modal-content">
-        <h3>Change Email</h3>
-        <form @submit.prevent="updateEmail">
-          <div class="form-group">
-            <label>New Email</label>
-            <input type="email" v-model="emailForm.new" required />
-          </div>
-          <div class="modal-actions">
-            <button type="submit" class="btn btn-primary">Update</button>
-            <button type="button" class="btn btn-secondary" @click="closeAllModals">Cancel</button>
-          </div>
-        </form>
+  <Modal v-if="modals.email" title="Change Email" size="sm" @close="closeAllModals">
+    <form @submit.prevent="updateEmail">
+      <div class="form-group">
+        <label>New Email</label>
+        <input type="email" v-model="emailForm.new" class="field-control" required />
       </div>
-    </div>
-  </Transition>
+      <div class="modal-actions">
+        <button type="submit" class="btn btn-primary">Update</button>
+        <button type="button" class="btn btn-secondary" @click="closeAllModals">Cancel</button>
+      </div>
+    </form>
+  </Modal>
 
   <!-- Change Name Modal -->
-  <Transition name="modal-fade">
-    <div v-if="modals.name" class="modal-overlay">
-      <div class="modal-content">
-        <h3>Change Name</h3>
-        <form @submit.prevent="updateName">
-          <div class="form-group">
-            <label>New Name</label>
-            <input type="text" v-model="nameForm.new" required />
-          </div>
-          <div class="modal-actions">
-            <button type="submit" class="btn btn-primary">Update</button>
-            <button type="button" class="btn btn-secondary" @click="closeAllModals">Cancel</button>
-          </div>
-        </form>
+  <Modal v-if="modals.name" title="Change Name" size="sm" @close="closeAllModals">
+    <form @submit.prevent="updateName">
+      <div class="form-group">
+        <label>New Name</label>
+        <input type="text" v-model="nameForm.new" class="field-control" required />
       </div>
-    </div>
-  </Transition>
+      <div class="modal-actions">
+        <button type="submit" class="btn btn-primary">Update</button>
+        <button type="button" class="btn btn-secondary" @click="closeAllModals">Cancel</button>
+      </div>
+    </form>
+  </Modal>
 </template>
 
 <script setup>
 import { ref } from 'vue'
+import Modal from '@/components/Modal.vue'
 import { useHashModal } from '@/composables/useHashModal'
 
 const token = localStorage.getItem('token')

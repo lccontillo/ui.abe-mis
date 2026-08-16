@@ -3,12 +3,15 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Home20, Add20, ArrowRight20 } from '@carbon/icons-vue'
 import TitleBar from '@/components/TitleBar.vue'
+import SkeletonLoader from '@/components/SkeletonLoader.vue'
+import EmptyState from '@/components/EmptyState.vue'
 import { useUserStore } from '@/stores/user'
 const userStore = useUserStore()
 
 const token = localStorage.getItem('token')
 const stats = ref({})
 const logs = ref([])
+const isLoading = ref(true)
 const router = useRouter()
 
 const fetchStats = async () => {
@@ -27,10 +30,11 @@ const fetchRecentLogs = async () => {
   logs.value = data.data
 }
 
-onMounted(() => {
+onMounted(async () => {
+  isLoading.value = true
   userStore.fetchMe()
-  fetchStats()
-  fetchRecentLogs()
+  await Promise.all([fetchStats(), fetchRecentLogs()])
+  isLoading.value = false
 })
 </script>
 
@@ -38,11 +42,14 @@ onMounted(() => {
   <div class="dashboard app-page">
     <TitleBar title="Dashboard" />
 
-    <div v-if="!stats.total_fcas && !logs.length" class="loader-center">
-      <DonutLoader color="#2e7d32" size="1.5rem" :multi="false" />
+    <div v-if="isLoading" class="dashboard-loading">
+      <div class="stat-row">
+        <SkeletonLoader type="card" v-for="i in 2" :key="i" />
+      </div>
+      <SkeletonLoader type="table" />
     </div>
 
-    <div v-else>
+    <div v-else class="fade-in">
       <!-- Action + Stats -->
       <div class="stat-row">
         <button class="btn btn-primary" @click="router.push('/fca')">
@@ -75,9 +82,9 @@ onMounted(() => {
       <div class="card panel">
         <div class="card-header">
           <h2>Recent Activity</h2>
-          <button class="view-all" @click="router.push('/settings/logs')">View All</button>
+          <button v-if="logs.length" class="view-all" @click="router.push('/settings/logs')">View All</button>
         </div>
-        <div class="table-wrap">
+        <div v-if="logs.length" class="table-wrap">
           <table class="log-table table">
             <thead>
               <tr>
@@ -97,6 +104,11 @@ onMounted(() => {
             </tbody>
           </table>
         </div>
+        <EmptyState 
+          v-else 
+          title="No recent activity" 
+          description="Actions performed in the system will appear here."
+        />
       </div>
     </div>
   </div>
@@ -193,5 +205,13 @@ onMounted(() => {
 
 .log-table {
   font-size: 0.88rem;
+}
+
+.fade-in {
+  animation: fadeIn var(--duration-normal) var(--ease-out);
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 </style>

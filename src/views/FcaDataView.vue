@@ -1,9 +1,10 @@
 <template>
   <div class="fca-data-view app-page">
-    <TitleBar title="FCA Details" :icon="Document20" />
+    <BreadcrumbNav :items="[{ label: 'Home', to: '/' }, { label: 'FCAs', to: '/fcas' }, { label: fca.general.name || 'FCA Details' }]" />
+    <TitleBar :title="fca.general.name || 'FCA Details'" :icon="Document20" />
 
     <!-- Tabs -->
-    <!-- <div class="tabs">
+    <div class="tabs settings-tabs">
       <button
         :class="['tab-btn', activeTab === 'profile' ? 'active' : '']"
         @click="activeTab = 'profile'"
@@ -16,10 +17,10 @@
       >
         Documents
       </button>
-    </div> -->
+    </div>
 
     <!-- Profile Tab -->
-    <div v-if="activeTab === 'profile'" class="profile-tab">
+    <div v-if="activeTab === 'profile'" class="profile-tab panel">
       <div class="flex justify-between items-center mb-4">
         <button class="edit-btn btn btn-primary" type="button" @click="openEditModal">
           Edit FCA
@@ -107,12 +108,12 @@
     </div>
 
     <!-- Documents Tab -->
-    <div v-if="activeTab === 'documents'" class="documents-tab">
+    <div v-if="activeTab === 'documents'" class="documents-tab panel">
       <div class="filters">
-        <input v-model="selectedDocument" placeholder="Filter by Document" class="filter-input" />
-        <input v-model="selectedGroup" placeholder="Filter by Group" class="filter-input" />
-        <input v-model="selectedUser" placeholder="Filter by User" class="filter-input" />
-        <button @click="fetchDocuments">Apply</button>
+        <input v-model="selectedDocument" placeholder="Filter by Document" class="field-control" />
+        <input v-model="selectedGroup" placeholder="Filter by Group" class="field-control" />
+        <input v-model="selectedUser" placeholder="Filter by User" class="field-control" />
+        <button class="btn btn-primary" @click="fetchDocuments">Apply</button>
       </div>
 
       <DataTable
@@ -120,6 +121,7 @@
         :columns="columns"
         :sort="{ column: sort, order }"
         :onSort="toggleSort"
+        :loading="isLoading"
       >
         <template #actions="{ row }">
           <a :href="row.download_url" target="_blank" title="Download" class="action-icon">
@@ -128,35 +130,24 @@
         </template>
       </DataTable>
 
-      <div class="pagination">
-        <div>
-          <button :disabled="page === 1" @click="page-- && fetchDocuments()">Prev</button>
-          <span>Page {{ page }} of {{ totalPages }}</span>
-          <button :disabled="page >= totalPages" @click="page++ && fetchDocuments()">Next</button>
-        </div>
-        <div class="limit">
-          <label>Rows per page:</label>
-          <select v-model="limit" @change="fetchDocuments()">
-            <option :value="10">10</option>
-            <option :value="25">25</option>
-            <option :value="50">50</option>
-          </select>
-        </div>
-      </div>
+      <PaginationBar 
+        :currentPage="page" 
+        :totalPages="totalPages" 
+        :perPage="limit"
+        @page-change="p => { page = p; fetchDocuments() }" 
+        @per-page-change="l => { limit = l; page = 1; fetchDocuments() }"
+      />
     </div>
 
     <!-- Edit Modal -->
-    <div v-if="showEdit" class="modal-overlay">
-      <div class="modal-content">
-        <button class="close-btn" @click="closeEditModal">&times;</button>
-        <FcaForm
-          :initialData="fca"
-          :editMode="true"
-          @close="closeEditModal"
-          @updated="handleUpdate"
-        />
-      </div>
-    </div>
+    <Modal v-if="showEdit" title="Edit FCA Profile" size="lg" @close="closeEditModal">
+      <FcaForm
+        :initialData="fca"
+        :editMode="true"
+        @close="closeEditModal"
+        @updated="handleUpdate"
+      />
+    </Modal>
   </div>
 </template>
 
@@ -165,8 +156,11 @@ import { ref, reactive, onMounted, watch, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import TitleBar from '@/components/TitleBar.vue'
 import DataTable from '@/components/DataTable.vue'
+import BreadcrumbNav from '@/components/BreadcrumbNav.vue'
+import PaginationBar from '@/components/PaginationBar.vue'
+import Modal from '@/components/Modal.vue'
 import FcaForm from './FcaForm.vue'
-import { Document20 } from '@carbon/icons-vue'
+import { Document20, Download20 } from '@carbon/icons-vue'
 import { useHashModal } from '@/composables/useHashModal'
 
 const token = localStorage.getItem('token')
@@ -175,6 +169,7 @@ const fcaId = Number(route.params.id) || 2
 
 const activeTab = ref('profile')
 const loading = ref(true)
+const isLoading = ref(false)
 const fca = reactive({ general: {}, organization: {}, officers: [], bods: [] })
 const showEdit = ref(false)
 const { openHashModal, closeHashModal } = useHashModal({
@@ -223,7 +218,7 @@ const order = ref('desc')
 const total = ref(0)
 
 async function fetchDocuments() {
-  console.log('Fetching documents...', fcaId)
+  isLoading.value = true
   const params = new URLSearchParams()
   params.append('fca_id', fcaId)
   if (selectedDocument.value) params.append('document_name', selectedDocument.value)
@@ -244,6 +239,7 @@ async function fetchDocuments() {
     download_url: d.download_url || `/api/documents/${d.id}/download`,
   }))
   total.value = data.total
+  isLoading.value = false
 }
 
 const columns = [

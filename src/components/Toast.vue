@@ -1,12 +1,14 @@
 <template>
   <div class="toast-container bottom-center">
-    <div v-for="(toast, index) in toasts" :key="index" class="toast">
-      <div class="toast-icon">
-        <component :is="icons[toast.type]" :style="{ color: iconColors[toast.type] }" />
+    <TransitionGroup name="toast-slide">
+      <div v-for="toast in toasts" :key="toast.id" class="toast">
+        <div class="toast-icon">
+          <component :is="icons[toast.type]" :style="{ color: iconColors[toast.type] }" />
+        </div>
+        <div class="toast-message">{{ toast.message }}</div>
+        <button class="toast-dismiss" @click="remove(toast)">×</button>
       </div>
-      <div class="toast-message">{{ toast.message }}</div>
-      <button class="toast-dismiss" @click="remove(toast)">×</button>
-    </div>
+    </TransitionGroup>
   </div>
 </template>
 
@@ -45,7 +47,7 @@ const iconColors = {
   bottom: 1rem;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 9999;
+  z-index: var(--z-toast);
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
@@ -83,4 +85,7 @@ const iconColors = {
   color: var(--text-muted);
   cursor: pointer;
 }
+
+.toast-slide-enter-active, .toast-slide-leave-active { transition: all var(--duration-normal) var(--ease-out); }
+.toast-slide-enter-from, .toast-slide-leave-to { opacity: 0; transform: translateY(20px); }
 </style>

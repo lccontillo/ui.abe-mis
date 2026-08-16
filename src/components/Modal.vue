@@ -1,7 +1,7 @@
 <template>
   <Transition name="modal-fade" appear>
-    <div class="modal-overlay" @click.self="$emit('close')">
-      <section class="modal-content" role="dialog" aria-modal="true" :aria-label="title">
+    <div class="modal-overlay" @click.self="!persistent && $emit('close')">
+      <section :class="['modal-content', `modal-${size}`]" role="dialog" aria-modal="true" :aria-label="title">
         <div class="modal-header">
           <h3 class="modal-title">{{ title }}</h3>
           <button
@@ -22,6 +22,8 @@
 <script setup>
 defineProps({
   title: String,
+  size: { type: String, default: 'md' },
+  persistent: { type: Boolean, default: false }
 })
 defineEmits(['close'])
 </script>
@@ -45,4 +47,8 @@ defineEmits(['close'])
 .modal-close {
   flex: 0 0 auto;
 }
+
+.modal-sm { max-width: 360px; }
+.modal-md { max-width: 440px; }
+.modal-lg { max-width: 600px; }
 </style>

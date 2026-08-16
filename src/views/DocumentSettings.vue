@@ -1,8 +1,10 @@
 <template>
   <div class="document-settings app-page">
+    <BreadcrumbNav :items="[{ label: 'Home', to: '/' }, { label: 'Settings', to: '/settings' }, { label: 'Document Templates' }]" />
+    <TitleBar title="Document Templates" />
     <div class="actions">
-      <button class="green-btn" @click="openNewGroupModal">+ New Group</button>
-      <button class="green-btn" @click="openDocumentModal()">+ New Document</button>
+      <button class="btn btn-primary" @click="openNewGroupModal">+ New Group</button>
+      <button class="btn btn-primary" @click="openDocumentModal()">+ New Document</button>
     </div>
 
     <!-- Group Filters -->
@@ -26,6 +28,7 @@
       :columns="columns"
       :sort="sort"
       :onSort="toggleSort"
+      :loading="isLoading"
       @view="viewDocument"
     >
       <template #actions="{ row }">
@@ -40,27 +43,20 @@
     </DataTable>
 
     <!-- Pagination -->
-    <div class="pagination">
-      <button :disabled="pagination.page === 1" @click="pagination.page-- && fetchDocuments()">
-        Prev
-      </button>
-      <span>Page {{ pagination.page }} of {{ totalPages }}</span>
-      <button
-        :disabled="pagination.page >= totalPages"
-        @click="pagination.page++ && fetchDocuments()"
-      >
-        Next
-      </button>
-      <select v-model="pagination.limit" @change="fetchDocuments()">
-        <option :value="10">10</option>
-        <option :value="20">20</option>
-        <option :value="50">50</option>
-      </select>
-    </div>
+    <PaginationBar 
+      :currentPage="pagination.page" 
+      :totalPages="totalPages" 
+      :perPage="pagination.limit"
+      @page-change="p => { pagination.page = p; fetchDocuments() }" 
+      @per-page-change="l => { pagination.limit = l; pagination.page = 1; fetchDocuments() }"
+    />
 
     <!-- Modals -->
-    <Modal v-if="showGroupModal" title="New Group" @close="closeDocumentSettingsModal">
-      <input v-model="newGroupName" placeholder="Group Name" />
+    <Modal v-if="showGroupModal" title="New Group" size="sm" @close="closeDocumentSettingsModal">
+      <div class="form-group">
+        <label>Group Name</label>
+        <input v-model="newGroupName" class="field-control" placeholder="Group Name" />
+      </div>
       <div class="modal-actions">
         <button class="btn btn-primary" type="button" @click="createGroup">Create</button>
         <button class="btn btn-secondary" type="button" @click="closeDocumentSettingsModal">
@@ -69,8 +65,11 @@
       </div>
     </Modal>
 
-    <Modal v-if="showEditGroupModal" title="Edit Group" @close="closeDocumentSettingsModal">
-      <input v-model="updatedGroupName" />
+    <Modal v-if="showEditGroupModal" title="Edit Group" size="sm" @close="closeDocumentSettingsModal">
+      <div class="form-group">
+        <label>Group Name</label>
+        <input v-model="updatedGroupName" class="field-control" />
+      </div>
       <div class="modal-actions">
         <button class="btn btn-primary" type="button" @click="updateGroup">Save</button>
         <button class="btn btn-secondary" type="button" @click="closeDocumentSettingsModal">
@@ -82,13 +81,23 @@
     <Modal
       v-if="showDocumentModal"
       :title="editingDocument ? 'Edit Document' : 'New Document'"
+      size="md"
       @close="closeDocumentSettingsModal"
     >
-      <select v-model="form.group_id">
-        <option v-for="g in groups" :value="g.id" :key="g.id">{{ g.name }}</option>
-      </select>
-      <input v-model="form.name" placeholder="Document Name" />
-      <input type="file" @change="(e) => (form.file = e.target.files[0])" />
+      <div class="form-group">
+        <label>Group</label>
+        <select v-model="form.group_id" class="field-control">
+          <option v-for="g in groups" :value="g.id" :key="g.id">{{ g.name }}</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Document Name</label>
+        <input v-model="form.name" class="field-control" placeholder="Document Name" />
+      </div>
+      <div class="form-group">
+        <label>File (.docx)</label>
+        <input type="file" @change="(e) => (form.file = e.target.files[0])" class="field-control" />
+      </div>
       <div class="modal-actions">
         <button class="btn btn-primary" type="button" @click="submitDocument" :disabled="saving">
           {{ saving ? 'Saving...' : 'Save' }}
@@ -107,6 +116,9 @@ import { useRouter } from 'vue-router'
 import DataTable from '@/components/DataTable.vue'
 import Modal from '@/components/Modal.vue'
 import TitleBar from '@/components/TitleBar.vue'
+import BreadcrumbNav from '@/components/BreadcrumbNav.vue'
+import PaginationBar from '@/components/PaginationBar.vue'
+import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { Document20 } from '@carbon/icons-vue'
 import { useHashModal } from '@/composables/useHashModal'
 
@@ -119,6 +131,8 @@ const groups = ref([])
 const documents = ref([])
 const total = ref(0)
 const activeGroupId = ref(null)
+const isLoading = ref(false)
+const { confirm } = useConfirmDialog()
 
 const sort = ref({ column: 'name', order: 'asc' })
 const pagination = ref({ page: 1, limit: 10 })
@@ -170,6 +184,7 @@ async function fetchGroups() {
 }
 
 async function fetchDocuments() {
+  isLoading.value = true
   const url = new URL('https://api-abealcala.duckdns.org/documents')
   if (activeGroupId.value) url.searchParams.set('group', activeGroupId.value)
   url.searchParams.set('sort', sort.value.column)
@@ -177,10 +192,14 @@ async function fetchDocuments() {
   url.searchParams.set('page', pagination.value.page)
   url.searchParams.set('limit', pagination.value.limit)
 
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
-  const data = await res.json()
-  documents.value = data.data || []
-  total.value = data.total || data.length || 0
+  try {
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+    const data = await res.json()
+    documents.value = data.data || []
+    total.value = data.total || data.length || 0
+  } finally {
+    isLoading.value = false
+  }
 }
 
 async function createGroup() {
@@ -269,7 +288,7 @@ async function submitDocument() {
 }
 
 async function deleteDocument(doc) {
-  if (!confirm('Delete this document?')) return
+  if (!await confirm('Delete Document?', 'Are you sure you want to delete this document template?', 'Delete')) return
   await fetch(`https://api-abealcala.duckdns.org/document/${doc.id}`, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${token}` },
@@ -278,7 +297,7 @@ async function deleteDocument(doc) {
 }
 
 async function deleteGroup(groupId) {
-  if (!confirm('Delete this group?')) return
+  if (!await confirm('Delete Group?', 'Are you sure you want to delete this group and all its documents?', 'Delete')) return
   await fetch(`https://api-abealcala.duckdns.org/group/${groupId}`, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${token}` },

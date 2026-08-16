@@ -2,17 +2,22 @@
   <div class="date-field">
     <label class="field-label">{{ field.field_label }}</label>
     <input
-      class="date-input field-control"
+      :class="['date-input', 'field-control', { 'has-error': error }]"
       :value="formattedValue"
       type="date"
       @input="onDateChange"
     />
+    <p v-if="error" class="field-error">{{ error }}</p>
   </div>
 </template>
 
 <script setup>
 import { computed } from 'vue'
-const props = defineProps(['field', 'modelValue'])
+const props = defineProps({
+  field: Object,
+  modelValue: Object,
+  error: String
+})
 const emit = defineEmits(['update:modelValue'])
 
 const formattedValue = computed(() => {

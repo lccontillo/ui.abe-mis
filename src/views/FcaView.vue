@@ -1,5 +1,6 @@
 <template>
   <div class="container app-page">
+    <BreadcrumbNav :items="[{ label: 'Home', to: '/' }, { label: 'FCAs' }]" />
     <TitleBar title="Farmers' Cooperative Associations" :icon="Home20" />
 
     <!-- Filters -->
@@ -26,11 +27,12 @@
       :columns="columns"
       :sort="sort"
       :onSort="toggleSort"
+      :loading="isLoading"
+      emptyTitle="No FCAs Match Filters"
       @view="viewFca($event.id)"
     >
       <template #actions="{ row }">
         <View20 title="View" class="action-icon" @click="viewFca(row.id)" />
-        <!-- <DocumentExport20 title="Generate" class="action-icon" @click="generateDocs(row.id)" /> -->
         <Launch20
           title="Open Repository"
           :class="['action-icon', { disabled: !row.repository }]"
@@ -41,25 +43,12 @@
     </DataTable>
 
     <!-- Pagination -->
-    <div class="pagination">
-      <div>
-        <button :disabled="pagination.page === 1" @click="pagination.page-- && fetchFcas()">
-          Prev
-        </button>
-        <span>Page {{ pagination.page }} of {{ totalPages }}</span>
-        <button :disabled="pagination.page >= totalPages" @click="pagination.page++ && fetchFcas()">
-          Next
-        </button>
-      </div>
-      <div class="limit">
-        <label>Rows per page:</label>
-        <select v-model="pagination.limit" @change="fetchFcas()">
-          <option :value="10">10</option>
-          <option :value="20">20</option>
-          <option :value="50">50</option>
-        </select>
-      </div>
-    </div>
+    <PaginationBar 
+      :currentPage="pagination.page" 
+      :totalPages="totalPages" 
+      @page-change="p => { pagination.page = p; fetchFcas() }" 
+      @per-page-change="l => { pagination.limit = l; pagination.page = 1; fetchFcas() }"
+    />
   </div>
 </template>
 
@@ -68,6 +57,9 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import TitleBar from '@/components/TitleBar.vue'
 import DataTable from '@/components/DataTable.vue'
+import BreadcrumbNav from '@/components/BreadcrumbNav.vue'
+import PaginationBar from '@/components/PaginationBar.vue'
+import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { Home20, View20, DocumentExport20, TrashCan20, Launch20 } from '@carbon/icons-vue'
 
 const router = useRouter()
@@ -75,6 +67,8 @@ const token = localStorage.getItem('token')
 
 const fcas = ref([])
 const total = ref(0)
+const isLoading = ref(false)
+const { confirm } = useConfirmDialog()
 
 const filters = ref({
   keyword: '',
@@ -138,7 +132,7 @@ function generateDocs(id) {
 }
 
 async function deleteFca(id) {
-  if (!confirm('Are you sure you want to delete this FCA?')) return
+  if (!await confirm('Delete FCA?', 'Are you sure you want to delete this FCA? This action cannot be undone.', 'Delete')) return
 
   try {
     const res = await fetch(`https://api-abealcala.duckdns.org/fcas/${id}`, {
@@ -161,6 +155,7 @@ async function deleteFca(id) {
 }
 
 async function fetchFcas() {
+  isLoading.value = true
   const params = new URLSearchParams()
   if (filters.value.keyword) params.append('filters', filters.value.keyword)
   if (filters.value.type) params.append('type', filters.value.type)
@@ -182,6 +177,8 @@ async function fetchFcas() {
     total.value = json.total
   } catch (err) {
     alert('Error: ' + err.message)
+  } finally {
+    isLoading.value = false
   }
 }
 

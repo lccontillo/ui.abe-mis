@@ -1,5 +1,11 @@
 <script setup>
 import { ref, computed, onMounted, watch, reactive } from 'vue'
+import { useToast } from '@/composables/useToast'
+const { success, error, warning } = useToast()
+import BreadcrumbNav from '@/components/BreadcrumbNav.vue'
+import Stepper from '@/components/Stepper.vue'
+import SkeletonLoader from '@/components/SkeletonLoader.vue'
+import Modal from '@/components/Modal.vue'
 import fuzzysort from 'fuzzysort'
 import { computePosition, autoUpdate, offset, flip, shift } from '@floating-ui/dom'
 import { downloadZip } from 'client-zip'
@@ -28,6 +34,9 @@ const selectedGroup = ref(null)
 const selectedDocuments = ref([])
 const searchFca = ref('')
 const searchGroup = ref('')
+const isLoading = ref(false)
+const currentStep = ref(0)
+const steps = ['Select Entity', 'Choose Documents']
 const showModal = ref(false)
 const selectedDocForModal = ref(null)
 const formData = reactive({})
@@ -69,14 +78,19 @@ const fetchGroups = async () => {
 
 const fetchDocuments = async () => {
   if (!selectedGroup.value) return
-  const res = await fetch(
-    `https://api-abealcala.duckdns.org/documents?group=${selectedGroup.value.id}&limit=all`,
-    {
-      headers: { Authorization: `Bearer ${token}` },
-    },
-  )
-  const data = await res.json()
-  documents.value = data.data || []
+  isLoading.value = true
+  try {
+    const res = await fetch(
+      `https://api-abealcala.duckdns.org/documents?group=${selectedGroup.value.id}&limit=all`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      },
+    )
+    const data = await res.json()
+    documents.value = data.data || []
+  } finally {
+    isLoading.value = false
+  }
 }
 
 // Dropdown selection
@@ -91,6 +105,7 @@ const handleGroupSelect = (group) => {
   searchGroup.value = group.name
   isGroupDropdownOpen.value = false
   fetchDocuments()
+  currentStep.value = 1
 }
 
 // Modal actions
@@ -197,7 +212,7 @@ function closeModal() {
 
 async function submitForm() {
   if (!selectedFca.value || !selectedDocForModal.value) {
-    alert('Missing FCA or Document')
+    warning('Missing FCA or Document')
     return
   }
   try {
@@ -214,10 +229,10 @@ async function submitForm() {
       }),
     })
     if (!res.ok) throw new Error('Failed to generate document')
-    alert('Document generated successfully!')
+    success('Document generated successfully!')
     closeModal()
   } catch (e) {
-    alert('Error: ' + e.message)
+    error('Error: ' + e.message)
   }
 }
 
@@ -258,7 +273,7 @@ const filteredGroups = computed(() =>
 
 async function downloadDocument(doc) {
   if (!selectedFca.value || !doc) {
-    alert('Please select an FCA and document.')
+    warning('Please select an FCA and document.')
     return
   }
   try {
@@ -287,13 +302,13 @@ async function downloadDocument(doc) {
     a.remove()
     window.URL.revokeObjectURL(url)
   } catch (e) {
-    alert('Error: ' + e.message)
+    error('Error: ' + e.message)
   }
 }
 
 async function downloadAndZipDocuments(docIds) {
   if (!selectedFca.value || !docIds?.length) {
-    alert('Please select an FCA and document(s).')
+    warning('Please select an FCA and document(s).')
     return
   }
 
@@ -335,7 +350,7 @@ async function downloadAndZipDocuments(docIds) {
     a.remove()
     URL.revokeObjectURL(url)
   } else {
-    alert('No documents downloaded successfully.')
+    warning('No documents downloaded successfully.')
   }
 }
 
@@ -390,200 +405,164 @@ onMounted(async () => {
 
 <template>
   <div class="form-wrapper app-page">
-    <!-- FCA Selection -->
-    <h1 class="form-title">Generate Documents</h1>
-    <div class="form-group">
-      <label for="fcaInput">FCA</label>
-      <!-- <input id="fcaInput" class="input" list="fcaList" v-model="searchFca" @change="onFcaChange" />
-      <datalist id="fcaList">
-        <option v-for="fca in fcas" :key="fca.id" :value="fca.name" />
-      </datalist> -->
-
-      <v-select
-        v-model="searchFca"
-        :options="fcas"
-        label="name"
-        :reduce="(fca) => fca.name"
-        @update:modelValue="onFcaChange"
-        class="my-vue-select"
-        :placeholder="'Search FCA...'"
-        clearable
-      />
-      <!-- <p v-if="selectedFca" class="selected">Selected: {{ selectedFca.name }}</p> -->
+    <BreadcrumbNav :items="[{ label: 'Home', to: '/' }, { label: 'Generate Documents' }]" />
+    
+    <div class="wizard-header">
+      <h1 class="form-title">Generate Documents</h1>
+      <Stepper :steps="steps" :currentStep="currentStep" />
     </div>
 
-    <!-- Group Selection -->
-    <div class="form-group">
-      <label for="groupInput">Group</label>
-      <!-- <input
-        id="groupInput"
-        class="input"
-        list="groupList"
-        v-model="searchGroup"
-        @change="onGroupChange"
-      />
-      <datalist id="groupList">
-        <option v-for="group in groups" :key="group.id" :value="group.name" />
-      </datalist> -->
-      <v-select
-        v-model="searchGroup"
-        :options="groups"
-        label="name"
-        :reduce="(group) => group.name"
-        @update:modelValue="onGroupChange"
-        class="my-vue-select"
-        placeholder="Search group..."
-        clearable
-      />
+    <!-- Step 1: Selection -->
+    <div v-if="currentStep === 0" class="wizard-step">
+      <div class="form-group">
+        <label for="fcaInput">FCA</label>
+        <v-select
+          v-model="searchFca"
+          :options="fcas"
+          label="name"
+          :reduce="(fca) => fca.name"
+          @update:modelValue="onFcaChange"
+          placeholder="Search FCA..."
+          clearable
+        />
+      </div>
 
-      <!-- {{ searchGroup }}
-      <p v-if="selectedGroup" class="selected">Selected: {{ selectedGroup.name }}</p> -->
+      <div class="form-group">
+        <label for="groupInput">Group</label>
+        <v-select
+          v-model="searchGroup"
+          :options="groups"
+          label="name"
+          :reduce="(group) => group.name"
+          @update:modelValue="onGroupChange"
+          placeholder="Search group..."
+          clearable
+        />
+      </div>
     </div>
 
-    <!-- Documents -->
-    <div class="form-group">
-      <h3>Documents</h3>
-      <div v-for="doc in documents" :key="doc.id" class="document-item">
-        <label>
-          <!-- <input type="checkbox" :value="doc" v-model="selectedDocuments" /> -->
-          {{ doc.name }}
-        </label>
-        <div class="document-actions">
-          <button
-            class="btn btn-secondary"
-            v-if="doc.schema"
-            type="button"
-            @click="openFormModal(doc)"
-          >
-            Fill
-          </button>
-          <button class="btn btn-primary" type="button" @click="downloadDocument(doc)">
-            Download
-          </button>
+    <!-- Step 2: Documents -->
+    <div v-else class="wizard-step">
+      <div class="step-actions">
+        <button class="btn btn-secondary" @click="currentStep = 0">Back to Selection</button>
+      </div>
+
+      <div class="form-group">
+        <div class="section-header">
+          <h3>Available Documents</h3>
+          <span class="selected-entity" v-if="selectedFca">{{ selectedFca.acronym }} / {{ selectedGroup?.name }}</span>
+        </div>
+
+        <SkeletonLoader v-if="isLoading" type="table" :rows="3" />
+        <div v-else>
+          <div v-for="doc in documents" :key="doc.id" class="document-item panel">
+            <div class="doc-info">
+              <span class="doc-name">{{ doc.name }}</span>
+              <span class="doc-tag" v-if="doc.schema">Fillable</span>
+            </div>
+            <div class="document-actions">
+              <button
+                class="btn btn-secondary"
+                v-if="doc.schema"
+                type="button"
+                @click="openFormModal(doc)"
+              >
+                Fill Data
+              </button>
+              <button class="btn btn-primary" type="button" @click="downloadDocument(doc)">
+                Download
+              </button>
+            </div>
+          </div>
+          <EmptyState v-if="!documents.length" title="No documents found" description="No documents are available for this group." />
         </div>
       </div>
     </div>
 
-    <!-- <button class="btn full-width" @click="handleGenerateClick">Download Zip</button> -->
-
-    <!-- Right Side Modal -->
-    <Transition name="modal-fade">
-      <div v-if="showModal" class="side-modal">
-        <div class="side-modal-content modal-content">
-          <h1>{{ selectedDocForModal?.name }}</h1>
-          <form @submit.prevent="submitForm">
-            <div v-for="(field, idx) in selectedDocForModal.schema" :key="idx" class="form-group">
-              <component
-                :is="getFieldComponent(field)"
-                :field="field"
-                v-model="formData[camel(field.field_label)]"
-              />
-            </div>
-            <div class="modal-buttons modal-actions">
-              <button type="submit" class="btn btn-primary">Submit</button>
-              <button type="button" class="btn btn-secondary" @click="closeModal">Cancel</button>
-            </div>
-          </form>
+    <!-- Form Modal -->
+    <Modal 
+      v-if="showModal" 
+      :title="selectedDocForModal?.name" 
+      size="lg" 
+      @close="closeModal"
+    >
+      <form @submit.prevent="submitForm">
+        <div class="modal-form-scroll">
+          <div v-for="(field, idx) in selectedDocForModal.schema" :key="idx" class="form-group">
+            <component
+              :is="getFieldComponent(field)"
+              :field="field"
+              v-model="formData[camel(field.field_label)]"
+            />
+          </div>
         </div>
-      </div>
-    </Transition>
+        <div class="modal-actions">
+          <button type="submit" class="btn btn-primary">Save & Generate</button>
+          <button type="button" class="btn btn-secondary" @click="closeModal">Cancel</button>
+        </div>
+      </form>
+    </Modal>
   </div>
 </template>
 
 <style scoped>
-.form-wrapper {
-  max-width: 600px;
-  margin: 0 auto;
-  padding: 1.5rem;
+.wizard-header {
+  margin-bottom: 2rem;
 }
 
-.form-group {
+.wizard-step {
+  animation: fadeIn 300ms ease-out;
+}
+
+.section-header {
   display: flex;
-  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 1rem;
 }
 
-.input {
-  padding: 0.5rem 0.75rem;
-  font-size: 1rem;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-}
-
-.selected {
-  margin-top: 4px;
+.selected-entity {
   font-size: 0.85rem;
-  color: #555;
-}
-
-.btn {
-  padding: 0.5rem 1rem;
-  background-color: #27ae60;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  margin-right: 0.5rem;
-}
-
-.btn.secondary {
-  background-color: #888;
-}
-
-.btn.full-width {
-  width: 100%;
-  margin-top: 1rem;
+  color: var(--text-muted);
 }
 
 .document-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 0.5rem;
-  padding: 0.5rem 0;
-  border-bottom: 1px solid #eee;
+  margin-bottom: 0.75rem;
+  padding: 1rem;
 }
 
-.document-actions {
+.doc-info {
   display: flex;
-  gap: 0.5rem;
+  flex-direction: column;
+  gap: 0.25rem;
 }
 
-.side-modal {
-  position: fixed;
-  inset: 0 0 0 auto;
-  width: min(100vw, 750px);
-  height: 100vh;
-  height: 100dvh;
-  background: transparent;
-  z-index: 2000;
-  display: flex;
-  justify-content: flex-end;
+.doc-name {
+  font-weight: 600;
+  color: var(--heading);
 }
 
-.side-modal-content {
-  background: var(--bg-elevated);
-  width: 100%;
-  max-width: 750px;
-  height: 100vh;
-  height: 100dvh;
-  max-height: none;
-  padding: 2rem 2rem 0;
+.doc-tag {
+  font-size: 0.7rem;
+  background: var(--brand-100);
+  color: var(--brand-700);
+  padding: 2px 6px;
+  border-radius: 4px;
+  width: fit-content;
+}
+
+.modal-form-scroll {
+  max-height: 60vh;
   overflow-y: auto;
-  box-shadow: -2px 0 18px rgba(0, 0, 0, 0.22);
-  position: relative;
-  border-radius: 0;
+  padding: 1rem;
+  margin: 0 -1rem;
 }
 
-.modal-buttons {
-  display: flex;
-  gap: 1rem;
-  justify-content: flex-end;
-  position: sticky;
-  bottom: 0;
-  margin: 1rem -2rem 0;
-  padding: 1rem 2rem;
-  background: var(--bg-elevated);
-  border-top: 1px solid var(--border);
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 </style>

@@ -1,103 +1,107 @@
 <template>
   <div class="users-page app-page">
-    <h2>Users</h2>
-    <button class="btn btn-primary" type="button" @click="openCreateModal">+ Create User</button>
-
-    <div class="table-wrap users-table">
-      <table class="table">
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Username</th>
-            <th>Name</th>
-            <th>Email</th>
-            <th>Admin</th>
-            <th>Active</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="user in users" :key="user.id">
-            <td>{{ user.id }}</td>
-            <td>{{ user.username }}</td>
-            <td>{{ user.name ?? '-' }}</td>
-            <td>{{ user.email ?? '-' }}</td>
-            <td>{{ user.is_admin ? 'Yes' : 'No' }}</td>
-            <td>{{ user.is_active ? 'Yes' : 'No' }}</td>
-            <td>
-              <button class="btn btn-secondary" type="button" @click="confirmToggle(user)">
-                Toggle Active
-              </button>
-              <button class="btn btn-secondary" type="button" @click="openPasswordModal(user)">
-                Update Password
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+    <BreadcrumbNav :items="[{ label: 'Home', to: '/' }, { label: 'Settings', to: '/settings' }, { label: 'Users' }]" />
+    <TitleBar title="Users" />
+    
+    <div class="page-actions">
+      <button class="btn btn-primary" type="button" @click="openCreateModal">+ Create User</button>
     </div>
 
+    <DataTable
+      :data="users"
+      :columns="columns"
+      :loading="isLoading"
+    >
+      <template #actions="{ row }">
+        <button class="btn btn-secondary btn-sm" type="button" @click="confirmToggle(row)">
+          {{ row.is_active ? 'Deactivate' : 'Activate' }}
+        </button>
+        <button class="btn btn-secondary btn-sm" type="button" @click="openPasswordModal(row)">
+          Update Password
+        </button>
+      </template>
+    </DataTable>
+
     <!-- Create User Modal -->
-    <Transition name="modal-fade">
-      <div v-if="showCreateModal" class="modal">
-        <div class="modal-content">
-          <h3>Create User</h3>
-          <form @submit.prevent="createUser">
-            <div><label>Username:</label><input v-model="form.username" required /></div>
-            <div><label>Name:</label><input v-model="form.name" /></div>
-            <div><label>Email:</label><input v-model="form.email" /></div>
-            <div>
-              <label>Password:</label><input type="password" v-model="form.password" required />
-            </div>
-            <div>
-              <label><input type="checkbox" v-model="form.is_admin" /> Is Admin</label>
-            </div>
-            <div class="modal-actions">
-              <button class="btn btn-primary" type="submit">Create</button>
-              <button class="btn btn-secondary" type="button" @click="closeUserModal">
-                Cancel
-              </button>
-            </div>
-          </form>
+    <Modal v-if="showCreateModal" title="Create User" @close="closeUserModal">
+      <form @submit.prevent="createUser">
+        <div class="form-group">
+          <label>Username</label>
+          <input v-model="form.username" class="field-control" required />
         </div>
-      </div>
-    </Transition>
+        <div class="form-group">
+          <label>Name</label>
+          <input v-model="form.name" class="field-control" />
+        </div>
+        <div class="form-group">
+          <label>Email</label>
+          <input v-model="form.email" class="field-control" />
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" v-model="form.password" class="field-control" required />
+        </div>
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input type="checkbox" v-model="form.is_admin" /> Is Admin
+          </label>
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-primary" type="submit">Create</button>
+          <button class="btn btn-secondary" type="button" @click="closeUserModal">Cancel</button>
+        </div>
+      </form>
+    </Modal>
 
     <!-- Update Password Modal -->
-    <Transition name="modal-fade">
-      <div v-if="showPasswordModal && selectedUser" class="modal">
-        <div class="modal-content">
-          <h3>Update Password: {{ selectedUser.username }}</h3>
-          <form @submit.prevent="updatePassword">
-            <div>
-              <label>New Password:</label
-              ><input type="password" v-model="passwordForm.new" required />
-            </div>
-            <div>
-              <label>Confirm Password:</label
-              ><input type="password" v-model="passwordForm.confirm" required />
-            </div>
-            <div class="modal-actions">
-              <button class="btn btn-primary" type="submit">Update</button>
-              <button class="btn btn-secondary" type="button" @click="closeUserModal">
-                Cancel
-              </button>
-            </div>
-          </form>
+    <Modal 
+      v-if="showPasswordModal && selectedUser" 
+      :title="`Update Password: ${selectedUser.username}`" 
+      @close="closeUserModal"
+    >
+      <form @submit.prevent="updatePassword">
+        <div class="form-group">
+          <label>New Password</label>
+          <input type="password" v-model="passwordForm.new" class="field-control" required />
         </div>
-      </div>
-    </Transition>
+        <div class="form-group">
+          <label>Confirm Password</label>
+          <input type="password" v-model="passwordForm.confirm" class="field-control" required />
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-primary" type="submit">Update</button>
+          <button class="btn btn-secondary" type="button" @click="closeUserModal">Cancel</button>
+        </div>
+      </form>
+    </Modal>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
+import BreadcrumbNav from '@/components/BreadcrumbNav.vue'
+import TitleBar from '@/components/TitleBar.vue'
+import DataTable from '@/components/DataTable.vue'
+import Modal from '@/components/Modal.vue'
+import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { useHashModal } from '@/composables/useHashModal'
 
 const users = ref([])
+const total = ref(0)
+const isLoading = ref(false)
 const showCreateModal = ref(false)
 const showPasswordModal = ref(false)
 const selectedUser = ref(null)
+const { confirm } = useConfirmDialog()
+
+const columns = [
+  { label: 'ID', key: 'id' },
+  { label: 'Username', key: 'username' },
+  { label: 'Name', key: 'name' },
+  { label: 'Email', key: 'email' },
+  { label: 'Admin', key: 'is_admin' },
+  { label: 'Active', key: 'is_active' },
+]
 const { openHashModal, closeHashModal } = useHashModal({
   'create-user': (isOpen) => {
     showCreateModal.value = isOpen
@@ -125,6 +129,7 @@ const passwordForm = reactive({
 })
 
 async function fetchUsers() {
+  isLoading.value = true
   try {
     const res = await fetch('https://api-abealcala.duckdns.org/users', {
       headers: {
@@ -134,6 +139,8 @@ async function fetchUsers() {
     users.value = await res.json()
   } catch (err) {
     console.error('Fetch error:', err)
+  } finally {
+    isLoading.value = false
   }
 }
 
@@ -179,9 +186,9 @@ function resetCreateForm() {
   form.is_admin = false
 }
 
-function confirmToggle(user) {
+async function confirmToggle(user) {
   const action = user.is_active ? 'Deactivate' : 'Activate'
-  if (confirm(`Are you sure you want to ${action} ${user.username}?`)) {
+  if (await confirm(`${action} User?`, `Are you sure you want to ${action} ${user.username}?`, action)) {
     toggleActivation(user)
   }
 }

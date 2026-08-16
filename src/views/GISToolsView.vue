@@ -1,6 +1,7 @@
 <template>
   <div class="container app-page">
-    <TitleBar title="GIS Tools" :icon="Home20" />
+    <BreadcrumbNav :items="[{ label: 'Home', to: '/' }, { label: 'GIS Tools' }]" />
+    <TitleBar title="GIS Tools" :icon="Earth20" />
 
     <!-- Filters -->
     <div class="filters">
@@ -13,90 +14,70 @@
     </div>
 
     <!-- Table -->
-    <DataTable :data="conversions" :columns="columns" :sort="sort" :onSort="toggleSort">
+    <DataTable :data="conversions" :columns="columns" :sort="sort" :onSort="toggleSort" :loading="isLoading">
     </DataTable>
 
     <!-- Pagination -->
-    <div class="pagination">
-      <div>
-        <button :disabled="pagination.page === 1" @click="pagination.page-- && fetchFcas()">
-          Prev
-        </button>
-        <span>Page {{ pagination.page }} of {{ totalPages }}</span>
-        <button :disabled="pagination.page >= totalPages" @click="pagination.page++ && fetchFcas()">
-          Next
-        </button>
-      </div>
-      <div class="limit">
-        <label>Rows per page:</label>
-        <select v-model="pagination.limit" @change="fetchFcas()">
-          <option :value="10">10</option>
-          <option :value="20">20</option>
-          <option :value="50">50</option>
-        </select>
-      </div>
-    </div>
+    <PaginationBar 
+      :currentPage="pagination.page" 
+      :totalPages="totalPages" 
+      :perPage="pagination.limit"
+      @page-change="p => { pagination.page = p; fetchConversions() }" 
+      @per-page-change="l => { pagination.limit = l; pagination.page = 1; fetchConversions() }"
+    />
   </div>
 
-  <Transition name="modal-fade">
-    <div v-if="modals.gpxToShp" class="modal-overlay">
-      <div class="modal-content">
-        <h3>GPX to SHP Conversion</h3>
-        <form @submit.prevent="updatePassword">
-          <div class="form-group">
-            <label>Upload ZIP containing GPX files</label>
-            <input type="file" accept=".zip" ref="gpxFileInput" required />
-          </div>
-          {{ selectedGpxFile }}
-          <div class="modal-actions">
-            <button
-              type="button"
-              class="btn btn-primary"
-              :disabled="isConvertingGpx"
-              @click="convertGPX"
-            >
-              {{ isConvertingGpx ? 'Converting...' : 'Convert' }}
-            </button>
-            <button type="button" class="btn btn-secondary" @click="closeAllModals">Cancel</button>
-          </div>
-        </form>
+  <Modal v-if="modals.gpxToShp" title="GPX to SHP Conversion" size="sm" @close="closeAllModals">
+    <form @submit.prevent="convertGPX">
+      <div class="form-group">
+        <label>Upload ZIP containing GPX files</label>
+        <input type="file" accept=".zip" ref="gpxFileInput" class="field-control" required />
       </div>
-    </div>
-  </Transition>
-
-  <Transition name="modal-fade">
-    <div v-if="modals.shpToGpx" class="modal-overlay">
-      <div class="modal-content">
-        <h3>SHP to GPX Conversion</h3>
-        <form @submit.prevent="updatePassword">
-          <div class="form-group">
-            <label>Upload ZIP containing Shapefiles (cpg,dbf,prj,shp,shx)</label>
-            <input type="file" accept=".zip" ref="shpFileInput" required />
-          </div>
-
-          <div class="modal-actions">
-            <button
-              type="button"
-              class="btn btn-primary"
-              :disabled="isConvertingShp"
-              @click="convertSHP"
-            >
-              {{ isConvertingShp ? 'Converting...' : 'Convert' }}
-            </button>
-            <button type="button" class="btn btn-secondary" @click="closeAllModals">Cancel</button>
-          </div>
-        </form>
+      <div class="modal-actions">
+        <button
+          type="submit"
+          class="btn btn-primary"
+          :disabled="isConvertingGpx"
+        >
+          {{ isConvertingGpx ? 'Converting...' : 'Convert' }}
+        </button>
+        <button type="button" class="btn btn-secondary" @click="closeAllModals">Cancel</button>
       </div>
-    </div>
-  </Transition>
+    </form>
+  </Modal>
+
+  <Modal v-if="modals.shpToGpx" title="SHP to GPX Conversion" size="sm" @close="closeAllModals">
+    <form @submit.prevent="convertSHP">
+      <div class="form-group">
+        <label>Upload ZIP containing Shapefiles (cpg,dbf,prj,shp,shx)</label>
+        <input type="file" accept=".zip" ref="shpFileInput" class="field-control" required />
+      </div>
+
+      <div class="modal-actions">
+        <button
+          type="submit"
+          class="btn btn-primary"
+          :disabled="isConvertingShp"
+        >
+          {{ isConvertingShp ? 'Converting...' : 'Convert' }}
+        </button>
+        <button type="button" class="btn btn-secondary" @click="closeAllModals">Cancel</button>
+      </div>
+    </form>
+  </Modal>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useToast } from '@/composables/useToast'
+const { error, warning } = useToast()
 import { useRouter } from 'vue-router'
 import TitleBar from '@/components/TitleBar.vue'
 import DataTable from '@/components/DataTable.vue'
-import { Home20, View20, DocumentExport20, TrashCan20, Launch20 } from '@carbon/icons-vue'
+import BreadcrumbNav from '@/components/BreadcrumbNav.vue'
+import PaginationBar from '@/components/PaginationBar.vue'
+import Modal from '@/components/Modal.vue'
+import { Earth20, View20, DocumentExport20, TrashCan20, Launch20 } from '@carbon/icons-vue'
 import { useHashModal } from '@/composables/useHashModal'
 
 const modals = ref({ gpxToShp: false, shpToGpx: false })
@@ -115,6 +96,7 @@ const token = localStorage.getItem('token')
 
 const conversions = ref([])
 const total = ref(0)
+const isLoading = ref(false)
 
 const filters = ref({
   tool: '',
@@ -151,6 +133,7 @@ function toggleSort(column) {
 }
 
 async function fetchConversions() {
+  isLoading.value = true
   const params = new URLSearchParams()
   if (filters.value.tool) params.append('tool', filters.value.tool)
   params.append('sort', sort.value.column)
@@ -169,7 +152,9 @@ async function fetchConversions() {
     conversions.value = json.data
     total.value = json.total
   } catch (err) {
-    alert('Error: ' + err.message)
+    error('Error: ' + err.message)
+  } finally {
+    isLoading.value = false
   }
 }
 
@@ -192,7 +177,7 @@ async function convertGPX() {
   const file = gpxFileInput.value?.files?.[0]
 
   if (!file || !file.name.endsWith('.zip')) {
-    alert('Please select a .zip file.')
+    warning('Please select a .zip file.')
     return
   }
 
@@ -228,7 +213,7 @@ async function convertGPX() {
     closeAllModals()
     gpxFileInput.value = null // reset file input
   } catch (err) {
-    alert('Error: ' + err.message)
+    error('Error: ' + err.message)
   } finally {
     isConvertingGpx.value = false
     fetchConversions()
@@ -242,7 +227,7 @@ async function convertSHP() {
   const file = shpFileInput.value?.files?.[0]
 
   if (!file) {
-    alert('Please select a .shp or .zip file.')
+    warning('Please select a .shp or .zip file.')
     return
   }
 
@@ -277,7 +262,7 @@ async function convertSHP() {
     closeAllModals()
     shpFileInput.value.value = null
   } catch (err) {
-    alert('Error: ' + err.message)
+    error('Error: ' + err.message)
   } finally {
     isConvertingShp.value = false
     fetchConversions()

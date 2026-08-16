@@ -6,13 +6,18 @@
       :disabled="field.properties.disabled"
       :required="field.properties.required"
       v-model="model"
-      class="input-control field-control"
+      :class="['input-control', 'field-control', { 'has-error': error }]"
     />
+    <p v-if="error" class="field-error">{{ error }}</p>
   </div>
 </template>
 
 <script setup>
-const props = defineProps(['field', 'modelValue'])
+const props = defineProps({
+  field: Object,
+  modelValue: [String, Number],
+  error: String
+})
 const emit = defineEmits(['update:modelValue'])
 const model = defineModel()
 </script>

@@ -1,12 +1,12 @@
 <template>
   <div class="input-group">
     <label>Password</label>
-    <div class="password-wrapper">
+    <div :class="['password-wrapper', { 'has-error': error }]">
       <input
         :type="visible ? 'text' : 'password'"
         :value="modelValue"
         @input="$emit('update:modelValue', $event.target.value)"
-        required
+        :required="required"
       />
       <button
         class="password-toggle"
@@ -18,6 +18,7 @@
         <IconEye v-else />
       </button>
     </div>
+    <p v-if="error" class="field-error">{{ error }}</p>
   </div>
 </template>
 
@@ -27,6 +28,8 @@ import { ViewOff20 as IconEyeOff, View20 as IconEye } from '@carbon/icons-vue'
 
 defineProps({
   modelValue: String,
+  error: String,
+  required: Boolean
 })
 defineEmits(['update:modelValue'])
 
