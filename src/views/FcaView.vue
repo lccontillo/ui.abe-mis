@@ -1,24 +1,48 @@
 <template>
   <div class="container app-page">
-    <BreadcrumbNav :items="[{ label: 'Home', to: '/' }, { label: 'FCAs' }]" />
-    <TitleBar title="Farmers' Cooperative Associations" :icon="Home20" />
+    <div class="page-header">
+      <BreadcrumbNav :items="[{ label: 'Home', to: '/' }, { label: 'FCAs' }]" />
+      <button class="btn btn-primary" type="button" @click="router.push('/fca')">
+        <Add20 class="btn-icon" />
+        <span>New FCA</span>
+      </button>
+    </div>
 
     <!-- Filters -->
-    <div class="filters">
-      <input v-model="filters.keyword" placeholder="Search..." />
-      <select v-model="filters.type">
-        <option value="">All Types</option>
-        <option value="Cooperative">Cooperative</option>
-        <option value="Association">Association</option>
-      </select>
-      <!-- <select v-model="filters.major_commodity">
-        <option value="">All Commodities</option>
-        <option value="Rice">Rice</option>
-        <option value="Corn">Corn</option>
-        <option value="Peanuts">Peanuts</option>
-      </select> -->
-      <button class="btn btn-secondary" type="button" @click="resetFilters">Reset</button>
-      <button class="btn btn-primary" type="button" @click="fetchFcas">Apply</button>
+    <div class="filters-card panel">
+      <form class="filters-form" @submit.prevent="applyFilters">
+        <div class="filter-field search-field">
+          <label class="filter-label">Search</label>
+          <div class="input-with-icon">
+            <Search20 class="input-icon" />
+            <input
+              v-model="filters.keyword"
+              type="search"
+              class="field-control has-icon"
+              placeholder="Search by name, acronym, chairman..."
+              @keyup.enter="applyFilters"
+            />
+          </div>
+        </div>
+
+        <div class="filter-field type-field">
+          <label class="filter-label">FCA Type</label>
+          <select v-model="filters.type" class="field-control" @change="applyFilters">
+            <option value="">All Types</option>
+            <option value="Cooperative">Cooperative</option>
+            <option value="Association">Association</option>
+          </select>
+        </div>
+
+        <div class="filter-actions">
+          <button class="btn btn-primary" type="submit">
+            Apply
+          </button>
+          <button class="btn btn-secondary" type="button" @click="resetFilters">
+            Reset
+          </button>
+        </div>
+      </form>
     </div>
 
     <!-- Table -->
@@ -46,6 +70,7 @@
     <PaginationBar 
       :currentPage="pagination.page" 
       :totalPages="totalPages" 
+      :perPage="pagination.limit"
       @page-change="p => { pagination.page = p; fetchFcas() }" 
       @per-page-change="l => { pagination.limit = l; pagination.page = 1; fetchFcas() }"
     />
@@ -55,12 +80,11 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import TitleBar from '@/components/TitleBar.vue'
 import DataTable from '@/components/DataTable.vue'
 import BreadcrumbNav from '@/components/BreadcrumbNav.vue'
 import PaginationBar from '@/components/PaginationBar.vue'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
-import { Home20, View20, DocumentExport20, TrashCan20, Launch20 } from '@carbon/icons-vue'
+import { Add20, Search20, View20, TrashCan20, Launch20 } from '@carbon/icons-vue'
 
 const router = useRouter()
 const token = localStorage.getItem('token')
@@ -87,19 +111,15 @@ const pagination = ref({
 })
 
 const columns = [
-  // { label: 'ID', key: 'id' },
   { label: 'Name', key: 'name', sortable: true },
   { label: 'Acronym', key: 'acronym', sortable: true },
   { label: 'Type', key: 'type', sortable: true },
-  // { label: 'Municipality', key: 'municipality' },
-  // { label: 'Province', key: 'province' },
   { label: 'Major Commodity', key: 'major_commodity' },
   { label: 'Chairman', key: 'chairman' },
   { label: 'Members', key: 'total_members' },
-  // { label: 'Repository', key: 'repository' },
 ]
 
-const totalPages = computed(() => Math.ceil(total.value / pagination.value.limit))
+const totalPages = computed(() => Math.ceil(total.value / pagination.value.limit) || 1)
 
 function toggleSort(column) {
   if (sort.value.column === column) {
@@ -108,6 +128,11 @@ function toggleSort(column) {
     sort.value.column = column
     sort.value.order = 'asc'
   }
+  fetchFcas()
+}
+
+function applyFilters() {
+  pagination.value.page = 1
   fetchFcas()
 }
 
@@ -127,10 +152,6 @@ function openLink(url) {
   }
 }
 
-function generateDocs(id) {
-  router.push(`/generate?fca=${id}`)
-}
-
 async function deleteFca(id) {
   if (!await confirm('Delete FCA?', 'Are you sure you want to delete this FCA? This action cannot be undone.', 'Delete')) return
 
@@ -148,7 +169,7 @@ async function deleteFca(id) {
     }
 
     alert(`Deleted FCA ${id}`)
-    await fetchFcas() // Refresh the list
+    await fetchFcas()
   } catch (err) {
     alert('Error: ' + err.message)
   }
@@ -173,8 +194,8 @@ async function fetchFcas() {
     })
 
     const json = await res.json()
-    fcas.value = json.data
-    total.value = json.total
+    fcas.value = json.data || []
+    total.value = json.total || 0
   } catch (err) {
     alert('Error: ' + err.message)
   } finally {
@@ -187,73 +208,135 @@ onMounted(fetchFcas)
 
 <style scoped>
 .container {
-  padding: 1rem;
+  padding: 1.5rem;
 }
 
-.filters {
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.btn-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.filters-card {
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.25rem;
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+}
+
+.filters-form {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.75rem;
-  margin-bottom: 1rem;
-}
-.filters input,
-.filters select {
-  padding: 6px 10px;
-  font-size: 0.9rem;
-}
-.filters button {
-  padding: 6px 12px;
-  background: #2e7d32;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  font-size: 0.85rem;
-  cursor: pointer;
-}
-.filters button:hover {
-  background-color: #256128;
+  align-items: flex-end;
+  gap: 1rem;
 }
 
-.action-icon.disabled {
-  opacity: 0.4;
+.filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.filter-field.search-field {
+  flex: 1 1 300px;
+  min-width: 220px;
+}
+
+.filter-field.type-field {
+  flex: 0 1 220px;
+  min-width: 160px;
+}
+
+.filter-label {
+  font-size: 0.78rem;
+  font-weight: 650;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.input-with-icon {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.input-icon {
+  position: absolute;
+  left: 0.75rem;
+  width: 18px;
+  height: 18px;
+  color: var(--text-soft);
   pointer-events: none;
 }
 
-.pagination {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 1.25rem;
-  gap: 1rem;
+.field-control.has-icon {
+  padding-left: 2.35rem;
 }
-.pagination button {
-  padding: 5px 10px;
-  font-size: 0.85rem;
-  background: #2e7d32;
-  color: white;
-  border: none;
-  border-radius: 4px;
-}
-.pagination button:disabled {
-  background: #ccc;
-}
-.limit {
+
+.filter-actions {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: 0.85rem;
+  margin-left: auto;
 }
+
+.filter-actions .btn {
+  min-width: 84px;
+  height: 40px;
+}
+
 .action-icon {
   cursor: pointer;
-  margin-right: 0.5rem;
   width: 18px;
   height: 18px;
-  vertical-align: middle;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform var(--duration-fast) ease, opacity var(--duration-fast) ease;
 }
+
 .action-icon:hover {
   opacity: 0.8;
+  transform: scale(1.1);
 }
+
+.action-icon.disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 .text-red {
-  color: #d32f2f;
+  color: var(--danger-strong);
+}
+
+@media (max-width: 768px) {
+  .filters-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .filter-field.search-field,
+  .filter-field.type-field {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+
+  .filter-actions {
+    margin-left: 0;
+    width: 100%;
+    justify-content: flex-end;
+  }
 }
 </style>

@@ -9,6 +9,7 @@ import {
   UserProfile20,
   Add20,
   Road20,
+  Map20,
   Menu20,
   Close20,
   ChevronLeft20,
@@ -161,6 +162,13 @@ watch(
             <RouterLink to="/fmr-network-plan" class="nav-link" title="FMR Network Plan">
               <Road20 class="icon" />
               <span>FMR Network Plan</span>
+            </RouterLink>
+          </div>
+
+          <div class="nav-item" :class="{ active: route.path.startsWith('/farm-area-gis') }">
+            <RouterLink to="/farm-area-gis" class="nav-link" title="Farm Area GIS">
+              <Map20 class="icon" />
+              <span>Farm Area GIS</span>
             </RouterLink>
           </div>
 

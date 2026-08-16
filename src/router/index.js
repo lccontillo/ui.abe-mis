@@ -15,6 +15,7 @@ import Dashboard from '@/views/Dashboard.vue'
 import SettingsView from '@/views/SettingsView.vue'
 import AccountSettings from '@/views/AccountSettings.vue'
 import NetworkPlanView from '@/views/NetworkPlanView.vue'
+import FarmAreaGisView from '@/views/FarmAreaGisView.vue'
 // GISToolsView is deprecated in favor of NetworkPlanView
 // import GISToolsView from '@/views/GISToolsView.vue'
 
@@ -75,6 +76,11 @@ const router = createRouter({
       path: '/fmr-network-plan',
       name: 'fmr-network-plan',
       component: NetworkPlanView,
+    },
+    {
+      path: '/farm-area-gis',
+      name: 'farm-area-gis',
+      component: FarmAreaGisView,
     },
     {
       path: '/settings',

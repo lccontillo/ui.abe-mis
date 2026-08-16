@@ -64,7 +64,7 @@ textarea:focus-visible {
 
 .btn-primary,
 .green-btn,
-.filters button,
+.filters button:not(.btn-secondary),
 .pagination button,
 .pages button {
   background: var(--brand-600);
@@ -73,7 +73,7 @@ textarea:focus-visible {
 
 .btn-primary:hover:not(:disabled),
 .green-btn:hover:not(:disabled),
-.filters button:hover:not(:disabled),
+.filters button:not(.btn-secondary):hover:not(:disabled),
 .pagination button:hover:not(:disabled),
 .pages button:hover:not(:disabled) {
   background: var(--brand-700);
@@ -458,7 +458,7 @@ section {
   border-color: var(--border) !important;
 }
 
-.filters button,
+.filters button:not(.btn-secondary),
 .pagination button,
 .green-btn,
 .edit-btn,
@@ -468,7 +468,7 @@ section {
   border-color: transparent !important;
 }
 
-.filters button:hover,
+.filters button:not(.btn-secondary):hover,
 .pagination button:hover,
 .green-btn:hover,
 .edit-btn:hover,
@@ -476,10 +476,23 @@ section {
   background: var(--brand-700) !important;
 }
 
-.filters button:disabled,
+.filters button:not(.btn-secondary):disabled,
 .pagination button:disabled {
   background: var(--bg-muted) !important;
   color: var(--text-soft) !important;
+}
+
+.filters .btn-secondary,
+.btn-secondary {
+  background: var(--bg-muted) !important;
+  color: var(--text) !important;
+  border: 1px solid var(--border) !important;
+}
+
+.filters .btn-secondary:hover:not(:disabled),
+.btn-secondary:hover:not(:disabled) {
+  background: var(--bg-subtle) !important;
+  border-color: var(--border-strong) !important;
 }
 
 .form-title,

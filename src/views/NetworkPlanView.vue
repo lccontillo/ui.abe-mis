@@ -4,15 +4,6 @@
     <header class="plan-header">
       <div class="header-left">
         <BreadcrumbNav :items="[{ label: 'Home', to: '/' }, { label: 'FMR Network Plan' }]" />
-        <div class="page-title-row">
-          <div class="title-icon-badge">
-            <Road20 class="title-icon" />
-          </div>
-          <div>
-            <h1 class="page-title">FMR Network Plan</h1>
-            <!-- <p class="page-subtitle">Alcala, Cagayan · Municipal Agriculture Office</p> -->
-          </div>
-        </div>
       </div>
 
       <div class="header-actions">

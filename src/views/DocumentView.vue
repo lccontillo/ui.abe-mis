@@ -1,91 +1,71 @@
 <template>
   <div class="container app-page">
-    <BreadcrumbNav :items="[{ label: 'Home', to: '/' }, { label: 'Documents' }]" />
-    <TitleBar title="Generated Documents" :icon="Document20" />
-
-    <!-- Filters -->
-    <div class="filters">
-      <!-- Document Name -->
-      <!-- <input v-model="selectedDocument" placeholder="Filter by Document" /> -->
-      <!-- <input
-        list="docList"
-        v-model="searchDoc"
-        @change="onDocChange"
-        placeholder="Filter by  Document"
-      />
-      <datalist id="docList">
-        <option v-for="doc in docs" :key="doc.id" :value="doc.name" />
-      </datalist> -->
-
-      <v-select
-        v-model="selectedDocument"
-        :options="docs"
-        label="name"
-        :reduce="(g) => g"
-        placeholder="Select Document"
-      ></v-select>
-
-      <!-- FCA Dropdown -->
-      <!-- <input list="fcaList" v-model="searchFca" @change="onFcaChange" placeholder="Filter by FCA" />
-      <datalist id="fcaList">
-        <option v-for="fca in fcas" :key="fca.id" :value="fca.name" />
-      </datalist> -->
-
-      <v-select
-        v-model="selectedFca"
-        :options="fcas"
-        label="name"
-        :reduce="(g) => g"
-        placeholder="Select FCA"
-      ></v-select>
-      <!-- Group Dropdown -->
-      <!-- <input
-        list="groupList"
-        v-model="searchGroup"
-        @change="onGroupChange"
-        placeholder="Filter by Group"
-      />
-      <datalist id="groupList">
-        <option v-for="group in groups" :key="group.id" :value="group.name" />
-      </datalist> -->
-
-      <!-- <Vue3Select
-        v-model="selectedGroup"
-        :options="groups"
-        label="name"
-        :reduce="(group) => group"
-        placeholder="Search or select a group"
-      /> -->
-      <v-select
-        v-model="selectedGroup"
-        :options="groups"
-        label="name"
-        :reduce="(g) => g"
-        placeholder="Select group"
-      ></v-select>
-      <!-- User Dropdown -->
-      <!-- <input
-        list="userList"
-        v-model="searchUser"
-        @change="onUserChange"
-        placeholder="Filter by User"
-      />
-      <datalist id="userList">
-        <option v-for="user in users" :key="user.id" :value="user.name" />
-      </datalist> -->
-
-      <v-select
-        v-model="selectedUser"
-        :options="users"
-        label="name"
-        :reduce="(g) => g"
-        placeholder="Select User"
-      ></v-select>
-
-      <button class="btn btn-primary" type="button" @click="fetchDocuments">Apply</button>
+    <div class="page-header">
+      <BreadcrumbNav :items="[{ label: 'Home', to: '/' }, { label: 'Documents' }]" />
+      <button class="btn btn-primary" type="button" @click="router.push('/generate')">
+        <Add20 class="btn-icon" />
+        <span>Generate Document</span>
+      </button>
     </div>
 
-    <!-- {{ documents }} -->
+    <!-- Filters -->
+    <div class="filters-card panel">
+      <form class="filters-grid" @submit.prevent="applyFilters">
+        <div class="filter-field">
+          <label class="filter-label">Document</label>
+          <v-select
+            v-model="selectedDocument"
+            :options="docs"
+            label="name"
+            :reduce="(g) => g"
+            placeholder="All Documents"
+          ></v-select>
+        </div>
+
+        <div class="filter-field">
+          <label class="filter-label">FCA</label>
+          <v-select
+            v-model="selectedFca"
+            :options="fcas"
+            label="name"
+            :reduce="(g) => g"
+            placeholder="All FCAs"
+          ></v-select>
+        </div>
+
+        <div class="filter-field">
+          <label class="filter-label">Group</label>
+          <v-select
+            v-model="selectedGroup"
+            :options="groups"
+            label="name"
+            :reduce="(g) => g"
+            placeholder="All Groups"
+          ></v-select>
+        </div>
+
+        <div class="filter-field">
+          <label class="filter-label">User</label>
+          <v-select
+            v-model="selectedUser"
+            :options="users"
+            label="name"
+            :reduce="(g) => g"
+            placeholder="All Users"
+          ></v-select>
+        </div>
+
+        <div class="filter-actions">
+          <button class="btn btn-primary" type="submit">
+            Apply
+          </button>
+          <button class="btn btn-secondary" type="button" @click="resetFilters">
+            Reset
+          </button>
+        </div>
+      </form>
+    </div>
+
     <!-- Table -->
     <DataTable
       :data="documents"
@@ -120,8 +100,7 @@
 <script setup>
 import { ref, onMounted, watch, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Document20, View20, TrashCan20 } from '@carbon/icons-vue'
-import TitleBar from '@/components/TitleBar.vue'
+import { Add20, View20, TrashCan20 } from '@carbon/icons-vue'
 import DataTable from '@/components/DataTable.vue'
 import BreadcrumbNav from '@/components/BreadcrumbNav.vue'
 import PaginationBar from '@/components/PaginationBar.vue'
@@ -136,42 +115,22 @@ const total = ref(0)
 const isLoading = ref(false)
 const { confirm } = useConfirmDialog()
 
-const selectedDocument = ref('')
-const selectedFca = ref('')
-const selectedUser = ref('')
-const selectedGroup = ref('')
-
-const searchDoc = ref('')
-const searchFca = ref('')
-const searchGroup = ref('')
-const searchUser = ref('')
+const selectedDocument = ref(null)
+const selectedFca = ref(null)
+const selectedUser = ref(null)
+const selectedGroup = ref(null)
 
 const docs = ref([])
 const fcas = ref([])
 const groups = ref([])
 const users = ref([])
 
-function onDocChange() {
-  selectedDocument.value = docs.value.find((doc) => doc.name === searchDoc.value) || null
-}
-function onFcaChange() {
-  selectedFca.value = fcas.value.find((fca) => fca.name === searchFca.value) || null
-}
-
-function onGroupChange() {
-  selectedGroup.value = groups.value.find((group) => group.name === searchGroup.value) || null
-}
-
-function onUserChange() {
-  selectedUser.value = users.value.find((user) => user.name === searchUser.value) || null
-}
-
 const page = ref(Number(route.query.page) || 1)
 const limit = ref(Number(route.query.limit) || 10)
 const sort = ref(route.query.sort || 'updated_at')
 const order = ref(route.query.order || 'desc')
 
-const totalPages = computed(() => Math.ceil(total.value / limit.value))
+const totalPages = computed(() => Math.ceil(total.value / limit.value) || 1)
 
 const columns = [
   { label: 'Document', key: 'document_name' },
@@ -191,10 +150,23 @@ function toggleSort(column) {
   fetchDocuments()
 }
 
+function applyFilters() {
+  page.value = 1
+  fetchDocuments()
+}
+
+function resetFilters() {
+  selectedDocument.value = null
+  selectedFca.value = null
+  selectedGroup.value = null
+  selectedUser.value = null
+  page.value = 1
+  fetchDocuments()
+}
+
 function viewDocument(id, fca, group) {
-  // router.push(`/preview?document=${id}`)
   router.push(
-    `/generate?document_id=${id}&fca=${encodeURIComponent(fca)}&group=${encodeURIComponent(group)}`,
+    `/generate?document_id=${id}&fca=${encodeURIComponent(fca || '')}&group=${encodeURIComponent(group || '')}`,
   )
 }
 
@@ -215,7 +187,7 @@ async function deleteDocument(id) {
     }
 
     alert(`Deleted document ${id}`)
-    await fetchDocuments() // Refresh list
+    await fetchDocuments()
   } catch (err) {
     alert('Error: ' + err.message)
   }
@@ -224,31 +196,41 @@ async function deleteDocument(id) {
 async function fetchDocuments() {
   isLoading.value = true
   const params = new URLSearchParams()
-  if (selectedDocument.value) params.append('document_name', selectedDocument.value.name)
-  if (selectedFca.value) params.append('fca_name', selectedFca.value.name)
-  if (selectedUser.value) params.append('user_name', selectedUser.value.name)
-  if (selectedGroup.value) params.append('group_name', selectedGroup.value.name)
+  if (selectedDocument.value && selectedDocument.value.name) params.append('document_name', selectedDocument.value.name)
+  if (selectedFca.value && selectedFca.value.name) params.append('fca_name', selectedFca.value.name)
+  if (selectedUser.value && selectedUser.value.name) params.append('user_name', selectedUser.value.name)
+  if (selectedGroup.value && selectedGroup.value.name) params.append('group_name', selectedGroup.value.name)
   params.append('sort', sort.value)
   params.append('order', order.value)
   params.append('page', page.value)
   params.append('limit', limit.value)
 
-  const res = await fetch(`https://api-abealcala.duckdns.org/generated_documents?${params}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  })
-  const data = await res.json()
-  documents.value = data.data
-  total.value = data.total
-  isLoading.value = false
+  try {
+    const res = await fetch(`https://api-abealcala.duckdns.org/generated_documents?${params}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    const data = await res.json()
+    documents.value = data.data || []
+    total.value = data.total || 0
+  } catch (err) {
+    console.error('Failed to fetch documents:', err)
+  } finally {
+    isLoading.value = false
+  }
 }
 
 const fetchDocs = async () => {
-  const res = await fetch(`https://api-abealcala.duckdns.org/documents?limit=all`, {
-    headers: { Authorization: `Bearer ${token}` },
-  })
-  const data = await res.json()
-  docs.value = data.data || []
+  try {
+    const res = await fetch(`https://api-abealcala.duckdns.org/documents?limit=all`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    const data = await res.json()
+    docs.value = data.data || []
+  } catch (err) {
+    console.error('Failed to fetch docs:', err)
+  }
 }
+
 const fetchFcas = async () => {
   try {
     const res = await fetch('https://api-abealcala.duckdns.org/fcas?limit=all', {
@@ -268,7 +250,6 @@ const fetchGroups = async () => {
     })
     const data = await res.json()
     groups.value = data || []
-    console.log(groups.value)
   } catch (err) {
     console.error('Failed to fetch groups:', err)
   }
@@ -308,72 +289,143 @@ onMounted(() => {
 
 <style scoped>
 .container {
-  padding: 1rem;
+  padding: 1.5rem;
 }
 
-.filters {
+.page-header {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  margin-bottom: 1rem;
-}
-.filters input,
-.filters .v-select {
-  padding: 6px 4px;
-  font-size: 0.9rem;
-  min-width: 200px;
-  flex: 1;
-}
-
-.filters button {
-  padding: 6px 6px;
-  background: #2e7d32;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  font-size: 0.85rem;
-  cursor: pointer;
-  width: 100px;
-}
-.filters button:hover {
-  background-color: #256128;
-}
-
-.pagination {
-  display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-top: 1.25rem;
+  justify-content: space-between;
   gap: 1rem;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
 }
-.pagination button {
-  padding: 5px 10px;
-  font-size: 0.85rem;
-  background: #2e7d32;
-  color: white;
-  border: none;
-  border-radius: 4px;
+
+.btn-icon {
+  width: 18px;
+  height: 18px;
 }
-.pagination button:disabled {
-  background: #ccc;
+
+.filters-card {
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.25rem;
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
 }
-.limit {
+
+.filters-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr) auto;
+  gap: 1rem;
+  align-items: flex-end;
+}
+
+.filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.filter-label {
+  font-size: 0.78rem;
+  font-weight: 650;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.filter-actions {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: 0.85rem;
+  height: 40px;
 }
+
+.filter-actions .btn {
+  min-width: 80px;
+  height: 40px;
+}
+
 .action-icon {
   cursor: pointer;
-  margin-right: 0.5rem;
   width: 18px;
   height: 18px;
-  vertical-align: middle;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform var(--duration-fast) ease, opacity var(--duration-fast) ease;
 }
+
 .action-icon:hover {
   opacity: 0.8;
+  transform: scale(1.1);
 }
+
 .text-red {
-  color: #d32f2f;
+  color: var(--danger-strong);
+}
+
+:deep(.v-select .vs__dropdown-toggle) {
+  min-height: 40px;
+  height: 40px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  padding: 0 0.5rem;
+  display: flex;
+  align-items: center;
+}
+
+:deep(.v-select .vs__selected) {
+  color: var(--text);
+  margin: 0;
+  padding: 0;
+  font-size: 0.9rem;
+}
+
+:deep(.v-select .vs__search) {
+  margin: 0;
+  padding: 0;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+:deep(.v-select .vs__search::placeholder) {
+  color: var(--text-soft);
+  font-size: 0.9rem;
+}
+
+:deep(.v-select .vs__actions) {
+  padding: 0 0 0 0.25rem;
+}
+
+:deep(.v-select .vs__clear),
+:deep(.v-select .vs__open-indicator) {
+  fill: var(--text-soft);
+}
+
+@media (max-width: 1200px) {
+  .filters-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .filter-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+  }
+}
+
+@media (max-width: 640px) {
+  .filters-grid {
+    grid-template-columns: 1fr;
+  }
+  .filter-actions {
+    grid-column: 1 / -1;
+    justify-content: stretch;
+  }
+  .filter-actions .btn {
+    flex: 1;
+  }
 }
 </style>

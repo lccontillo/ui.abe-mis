@@ -11,14 +11,16 @@
               {{ sort.order === 'asc' ? '▲' : '▼' }}
             </span>
           </th>
-          <th v-if="$slots.actions">Actions</th>
+          <th v-if="$slots.actions" class="actions-header">Actions</th>
         </tr>
       </thead>
       <tbody>
         <tr v-for="row in data" :key="row.id" class="data-row" @dblclick="$emit('view', row)">
           <td v-for="col in columns" :key="col.key">{{ row[col.key] }}</td>
-          <td v-if="$slots.actions">
-            <slot name="actions" :row="row" />
+          <td v-if="$slots.actions" class="actions-cell">
+            <div class="actions-group">
+              <slot name="actions" :row="row" />
+            </div>
           </td>
         </tr>
       </tbody>
@@ -55,6 +57,21 @@ defineProps({
 .data-table th {
   cursor: pointer;
   user-select: none;
+}
+
+.actions-header,
+.actions-cell {
+  width: 1%;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.actions-group {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  white-space: nowrap;
 }
 
 .empty-cell {
