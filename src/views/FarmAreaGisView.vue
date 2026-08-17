@@ -7,6 +7,23 @@
       </div>
 
       <div class="header-actions">
+        <div class="sync-pill" :class="'sync-' + syncStatus" :title="syncStatusText + (lastSyncTime ? ' (Last synced: ' + lastSyncTime + ')' : '')">
+          <CheckmarkFilled20 v-if="syncStatus === 'synced'" class="sync-icon text-success" />
+          <Time20 v-else-if="syncStatus === 'syncing'" class="sync-icon text-warning rotating-icon" />
+          <WarningFilled20 v-else-if="syncStatus === 'offline'" class="sync-icon text-muted" />
+          <ErrorFilled20 v-else-if="syncStatus === 'error'" class="sync-icon text-danger" />
+          <Reset20 v-else class="sync-icon text-muted" />
+          <span class="sync-label">{{ syncStatusText }}</span>
+          <button 
+            type="button" 
+            class="btn-sync-action" 
+            title="Refresh & Pull from Server" 
+            :disabled="syncStatus === 'syncing'"
+            @click="fetchGisDataFromServer(false)"
+          >
+            <Reset20 class="btn-sync-icon" :class="{ 'rotating-icon': syncStatus === 'syncing' }" />
+          </button>
+        </div>
         <div class="coord-pill" title="Current map center or cursor">
           <Location20 class="coord-icon" />
           <span>{{ currentCoordinates }}</span>
@@ -51,58 +68,60 @@
               </button>
             </div>
 
+            <!-- Location Filter Dropdown -->
+            <div class="filter-row-sm location-filter-row" style="margin-top: 10px">
+              <label class="field-label-sm" for="searchLocationSelect">
+                <Location20 class="item-inline-icon" /> Location:
+              </label>
+              <select 
+                id="searchLocationSelect" 
+                v-model="searchLocationFilter" 
+                class="field-control-sm"
+                @change="searchFarm"
+              >
+                <option v-for="loc in availableLocations" :key="loc" :value="loc">
+                  {{ loc }}
+                </option>
+              </select>
+            </div>
+
             <!-- Search Results List -->
             <div v-if="searchResults.length > 0" class="search-results-list">
               <div
                 v-for="(result, index) in searchResults"
                 :key="(result.type || 'x') + '_' + index"
                 class="result-item-card"
-                :class="{ 'result-gpx-card': result.type === 'gpx' }"
+                :class="{ 'result-gpx-card': result.gpx }"
                 @click="flyToResult(result)"
               >
-                <div v-if="result.type === 'gpx'">
-                  <div class="result-header">
-                    <span class="result-name truncate"><Document20 class="item-inline-icon" /> {{ result.data.name }}</span>
-                    <span class="badge badge-success">{{ fmt4(result.data.areaHectares) }} ha</span>
-                  </div>
-                  <div class="result-meta">
-                    <UserProfile20 class="item-inline-icon" /> <strong>{{ result.derivedName || result.data.name }}</strong>
-                  </div>
-                  <div class="result-coords font-mono">
-                    <Location20 class="item-inline-icon" /> {{ result.data.center.lat.toFixed(5) }}, {{ result.data.center.lng.toFixed(5) }}
-                  </div>
-                  <div class="result-actions-row">
-                    <button type="button" class="btn btn-sm btn-secondary" @click.stop="openSearchInfo(result)">
-                      <Document20 class="btn-icon" /> Details
-                    </button>
-                    <button type="button" class="btn btn-sm btn-primary" @click.stop="flyToGPX(result.data)">
-                      <Location20 class="btn-icon" /> Locate
-                    </button>
-                  </div>
+                <div class="result-header">
+                  <span class="result-name truncate">
+                    <UserProfile20 class="item-inline-icon" /> {{ result.name }}
+                  </span>
+                  <span class="badge badge-success">{{ fmt4(result.area) }} ha</span>
                 </div>
-
-                <div v-else>
-                  <div class="result-header">
-                    <span class="result-name truncate"><UserProfile20 class="item-inline-icon" /> {{ result.data.name }}</span>
-                    <span class="badge badge-success">{{ fmt4(result.data.area) }} ha</span>
-                  </div>
-                  <div class="result-meta"><Location20 class="item-inline-icon" /> {{ result.data.location || 'Alcala, Cagayan' }}</div>
-                  <div v-if="result.data.commodity" class="result-meta">
-                    {{ result.data.commodity }}
-                  </div>
-                  <div class="result-actions-row">
-                    <button type="button" class="btn btn-sm btn-secondary" @click.stop="openSearchInfo(result)">
-                      <Document20 class="btn-icon" /> Details
-                    </button>
-                    <button type="button" class="btn btn-sm btn-primary" @click.stop="flyToResult(result)">
-                      <Location20 class="btn-icon" /> Locate
-                    </button>
-                  </div>
+                <div class="result-meta">
+                  <Location20 class="item-inline-icon" /> {{ result.location || 'ALCALA, CAGAYAN' }}
+                  <span v-if="result.commodity"> · {{ result.commodity }}</span>
+                </div>
+                <div v-if="result.gpx" class="result-meta font-mono" style="font-size: 11px; color: var(--brand-600, #2e7d32);">
+                  <Document20 class="item-inline-icon" /> Track: {{ result.gpx.name }}
+                </div>
+                <div v-else-if="result.parcels && result.parcels.length > 0 && result.parcels[0].coords" class="result-coords font-mono">
+                  <Location20 class="item-inline-icon" /> {{ result.parcels[0].coords }}
+                </div>
+                <div class="result-actions-row">
+                  <button type="button" class="btn btn-sm btn-secondary" @click.stop="openSearchInfo(result)">
+                    <Document20 class="btn-icon" /> Details
+                  </button>
+                  <button type="button" class="btn btn-sm btn-primary" @click.stop="flyToResult(result)">
+                    <Location20 class="btn-icon" /> Locate
+                  </button>
                 </div>
               </div>
             </div>
-            <div v-else-if="searchQuery" class="no-search-results">
-              No matching farm areas or GPX tracks found for "{{ searchQuery }}".
+            <div v-else-if="searchQuery || searchLocationFilter !== 'All'" class="no-search-results">
+              No matching farm areas found for "{{ searchQuery || searchLocationFilter }}".
             </div>
           </section>
 
@@ -349,6 +368,16 @@
               </select>
             </div>
 
+            <!-- Location Filter Dropdown -->
+            <div class="filter-row-sm" style="margin-top: 0.4rem;">
+              <label class="field-label-sm" for="farmerLocationFilterSelect">Filter Location:</label>
+              <select id="farmerLocationFilterSelect" v-model="farmerLocationFilter" class="field-control-sm">
+                <option v-for="loc in availableLocations" :key="loc" :value="loc">
+                  {{ loc === 'All' ? 'All Locations' : loc }}
+                </option>
+              </select>
+            </div>
+
             <div class="farmers-list-container">
               <div 
                 v-for="(farmer, index) in filteredFarmers" 
@@ -384,12 +413,52 @@
               </div>
 
               <div v-if="filteredFarmers.length === 0" class="no-search-results">
-                {{ farmers.length === 0 ? 'No farmers registered yet.' : 'No farmers match the selected commodity filter.' }}
+                {{ farmers.length === 0 ? 'No farmers registered yet.' : 'No farmers match the selected filters.' }}
               </div>
             </div>
           </section>
 
-          <!-- 5. Data Export Section -->
+          <!-- 5. Cloud Synchronization Section -->
+          <section class="panel-section">
+            <div class="section-title">
+              <span class="icon-label"><Earth20 class="section-icon" /> Cloud Synchronization</span>
+            </div>
+            <div class="sync-card-block">
+              <div class="sync-info-row">
+                <div class="sync-status-indicator" :class="'indicator-' + syncStatus">
+                  <span class="sync-status-dot"></span>
+                  <span class="sync-status-title">{{ syncStatusText }}</span>
+                </div>
+                <div v-if="lastSyncTime" class="sync-timestamp font-mono">
+                  Updated: {{ lastSyncTime }}
+                </div>
+              </div>
+              <div class="sync-actions-grid">
+                <button 
+                  type="button" 
+                  class="btn btn-primary btn-sm" 
+                  :disabled="syncStatus === 'syncing'" 
+                  title="Upload all local GIS data to server"
+                  @click="syncAllToServer(false)"
+                >
+                  <Upload20 class="btn-icon" />
+                  <span>Upload to Server</span>
+                </button>
+                <button 
+                  type="button" 
+                  class="btn btn-secondary btn-sm" 
+                  :disabled="syncStatus === 'syncing'" 
+                  title="Pull latest GIS data from server"
+                  @click="fetchGisDataFromServer(false)"
+                >
+                  <Reset20 class="btn-icon" :class="{ 'rotating-icon': syncStatus === 'syncing' }" />
+                  <span>Pull from Server</span>
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <!-- 6. Data Export Section -->
           <section class="panel-section">
             <div class="section-title">
               <span class="icon-label"><DocumentExport20 class="section-icon" /> Data Export</span>
@@ -424,6 +493,15 @@
         <div class="map-floating-controls">
           <button type="button" class="map-tool-btn" title="Reset View to Alcala" @click="resetView">
             <Home20 />
+          </button>
+          <button 
+            type="button" 
+            class="map-tool-btn" 
+            :class="{ active: boundaryVisible }" 
+            title="Toggle Alcala Boundary Layer" 
+            @click="toggleBoundaryLayer"
+          >
+            <MapBoundary20 />
           </button>
           <button 
             type="button" 
@@ -463,6 +541,9 @@
           <span><Location20 class="item-inline-icon" /> {{ centerLat.toFixed(4) }}, {{ centerLng.toFixed(4) }}</span>
           <span><UserProfile20 class="item-inline-icon" /> {{ farmers.length }} farmers</span>
           <span><Document20 class="item-inline-icon" /> {{ uploadedFiles.length }} GPX</span>
+          <span v-if="boundaryVisible" class="boundary-indicator" title="Alcala Municipal Boundary Layer Loaded">
+            <MapBoundary20 class="item-inline-icon" /> Boundary Layer Active
+          </span>
           <span v-if="drawMode" class="draw-indicator">
             <Edit20 class="item-inline-icon" /> Draw mode ON — click map
           </span>
@@ -480,7 +561,12 @@
     <div v-if="searchInfoItem" class="modal-overlay" @click.self="closeSearchInfo">
       <div class="modal-dialog">
         <div class="modal-header">
-          <h3 class="modal-title"><Document20 class="modal-title-icon" /> Attribute Info</h3>
+          <div class="modal-title-group">
+            <h3 class="modal-title"><Document20 class="modal-title-icon" /> Attribute Info</h3>
+            <span v-if="searchResults.length > 1" class="modal-counter-badge">
+              Result {{ currentSearchInfoIndex + 1 }} of {{ searchResults.length }}
+            </span>
+          </div>
           <button type="button" class="btn-close-modal" @click="closeSearchInfo">✕</button>
         </div>
 
@@ -518,6 +604,10 @@
                 <td>{{ searchInfoItem.data.commodity || '—' }}</td>
               </tr>
               <tr><th>Total Area</th><td class="font-mono">{{ fmt4(searchInfoItem.data.area) }} ha</td></tr>
+              <tr v-if="searchInfoItem.gpx || searchInfoItem.data.gpxFile">
+                <th>GPX Track</th>
+                <td><span class="badge badge-success">{{ (searchInfoItem.gpx || searchInfoItem.data.gpxFile).name }}</span></td>
+              </tr>
               <tr><th>Total Parcels</th><td>{{ searchInfoItem.data.parcels ? searchInfoItem.data.parcels.length : 1 }} parcel(s)</td></tr>
               <tr v-if="searchInfoItem.data.parcels && searchInfoItem.data.parcels.length > 0">
                 <td colspan="2">
@@ -532,13 +622,34 @@
           </table>
         </div>
 
-        <div class="modal-footer">
-          <button type="button" class="btn btn-primary btn-sm" @click="flyToResult(searchInfoItem)">
-            <Location20 class="btn-icon" /> Zoom on Map
-          </button>
-          <button type="button" class="btn btn-secondary btn-sm" @click="closeSearchInfo">
-            Close
-          </button>
+        <div class="modal-footer modal-footer-split">
+          <div class="modal-nav-group" v-if="searchResults.length > 1">
+            <button 
+              type="button" 
+              class="btn btn-secondary btn-sm" 
+              :disabled="currentSearchInfoIndex <= 0" 
+              @click="prevSearchInfo"
+            >
+              <ChevronLeft20 class="btn-icon" /> Prev
+            </button>
+            <span class="nav-count-pill">{{ currentSearchInfoIndex + 1 }} / {{ searchResults.length }}</span>
+            <button 
+              type="button" 
+              class="btn btn-secondary btn-sm" 
+              :disabled="currentSearchInfoIndex >= searchResults.length - 1" 
+              @click="nextSearchInfo"
+            >
+              Next <ChevronRight20 class="btn-icon" />
+            </button>
+          </div>
+          <div class="modal-action-group">
+            <button type="button" class="btn btn-primary btn-sm" @click="flyToResult(searchInfoItem)">
+              <Location20 class="btn-icon" /> Zoom on Map
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" @click="closeSearchInfo">
+              Close
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -550,7 +661,7 @@
           <h3 class="modal-title text-warning"><WarningFilled20 class="modal-title-icon" /> Duplicate GPX Detected</h3>
         </div>
         <p class="modal-desc">
-          The file <strong>{{ pendingDuplicateFile.name }}</strong> has coordinates that closely match an already uploaded GPX track.
+          The file <strong>{{ pendingDuplicateFile.name }}</strong> has coordinates that closely match an already uploaded GPX track<span v-if="pendingDuplicateFile.duplicateName"> (<strong>{{ pendingDuplicateFile.duplicateName }}</strong>)</span>.
         </p>
         <p class="modal-sub">
           Do you still want to import this duplicate track?
@@ -657,6 +768,7 @@ import {
   DocumentExport20,
   Earth20,
   ChevronLeft20,
+  ChevronRight20,
   Document20,
   UserProfile20,
   View20,
@@ -664,6 +776,7 @@ import {
   Edit20,
   Home20,
   Reset20,
+  MapBoundary20,
   CheckmarkFilled20,
   ErrorFilled20,
   Time20,
@@ -674,6 +787,32 @@ import { useConfirmDialog } from '@/composables/useConfirmDialog'
 
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import { downloadZip } from 'client-zip'
+import proj4 from 'proj4'
+import alcalaBoundaryRaw from '@/assets/AlcalaBoundary.json'
+
+// Register UTM Zone 51N projection (EPSG:32651)
+proj4.defs('EPSG:32651', '+proj=utm +zone=51 +datum=WGS84 +units=m +no_defs')
+
+// Convert Alcala boundary coordinates from EPSG:32651 to standard WGS84 [lng, lat]
+function convertUtmCoords(coords) {
+  if (typeof coords[0] === 'number') {
+    return proj4('EPSG:32651', 'EPSG:4326', coords)
+  }
+  return coords.map(convertUtmCoords)
+}
+
+const alcalaBoundaryGeoJson = {
+  ...alcalaBoundaryRaw,
+  crs: { type: 'name', properties: { name: 'urn:ogc:def:crs:OGC:1.3:CRS84' } },
+  features: (alcalaBoundaryRaw.features || []).map(f => ({
+    ...f,
+    geometry: {
+      ...f.geometry,
+      coordinates: convertUtmCoords(f.geometry.coordinates)
+    }
+  }))
+}
 
 const { success, warning, error, info } = useToast()
 const { confirm } = useConfirmDialog()
@@ -700,8 +839,31 @@ const currentDate = ref(new Date().toLocaleDateString('en-PH', {
 }))
 
 const searchQuery = ref('')
+const searchLocationFilter = ref('All')
 const searchResults = ref([])
 const searchInfoItem = ref(null)
+
+const availableLocations = computed(() => {
+  const locSet = new Set()
+  farmers.value.forEach(f => {
+    if (f.location) locSet.add(f.location.trim().toUpperCase())
+  })
+  uploadedFiles.value.forEach(g => {
+    const loc = deriveLocationFromGPX(g.name)
+    if (loc) locSet.add(loc.trim().toUpperCase())
+  })
+  const defaultLocs = [
+    'ALCALA, CAGAYAN',
+    'ENRILE, CAGAYAN',
+    'GATTARAN, CAGAYAN',
+    'LAL-LO, CAGAYAN',
+    'BUGUEY, CAGAYAN',
+    'CAMALANIUGAN, CAGAYAN',
+    'APARRI, CAGAYAN'
+  ]
+  defaultLocs.forEach(l => locSet.add(l))
+  return ['All', ...Array.from(locSet).sort()]
+})
 
 const isDragOver = ref(false)
 const gpxFileInput = ref(null)
@@ -713,6 +875,7 @@ const farmers = ref([])
 const newFarmer = ref({ name: '', location: '', area: '', coords: '', commodity: 'Rice' })
 const autoPopulatedArea = ref(null)
 const commodityFilter = ref('All')
+const farmerLocationFilter = ref('All')
 
 const editingFarmer = ref(null)
 const editingIndex = ref(-1)
@@ -720,6 +883,9 @@ const editingIndex = ref(-1)
 const drawMode = ref(false)
 const heatmapVisible = ref(false)
 let heatmapLayer = null
+
+const boundaryVisible = ref(true)
+let boundaryLayer = null
 
 const tempDrawPoints = ref([])
 const drawnMarkers = []
@@ -734,12 +900,23 @@ const statusType = ref('info')
 
 const ALCALA_CENTER = [17.9021, 121.6560]
 const STORAGE_KEY_FARMERS = 'farm_area_gis_farmers'
+const STORAGE_KEY_GPX_TRACKS = 'farm_area_gis_gpx_tracks'
+
+const API_BASE = import.meta.env.VITE_API_ENDPOINT || 'https://api-abealcala.duckdns.org'
+const syncStatus = ref('idle') // 'idle' | 'syncing' | 'synced' | 'offline' | 'error'
+const syncStatusText = ref('Cloud Sync Ready')
+const lastSyncTime = ref(null)
+let saveDebounceTimer = null
 
 // Computed
 const filteredFarmers = computed(() => {
-  return commodityFilter.value === 'All'
-    ? farmers.value
-    : farmers.value.filter(f => f.commodity === commodityFilter.value)
+  return farmers.value.filter(f => {
+    const matchCommodity = commodityFilter.value === 'All' || f.commodity === commodityFilter.value
+    const fLoc = (f.location || 'ALCALA, CAGAYAN').trim().toUpperCase()
+    const targetLoc = farmerLocationFilter.value
+    const matchLocation = targetLoc === 'All' || fLoc === targetLoc || fLoc.includes(targetLoc.replace(', CAGAYAN', '').trim())
+    return matchCommodity && matchLocation
+  })
 })
 
 const layerIcon = computed(() => {
@@ -814,6 +991,17 @@ function initMap() {
   baseLayers.esriTopo = esriTopo
 
   terrain.addTo(map)
+
+  // Initialize and display Alcala boundary layer as default layer
+  initBoundaryLayer()
+
+  try {
+    if (boundaryLayer && map.hasLayer(boundaryLayer)) {
+      map.fitBounds(boundaryLayer.getBounds(), { padding: [20, 20] })
+    }
+  } catch (e) {
+    console.warn('Could not fit bounds to boundary:', e)
+  }
 
   map.on('zoomend', () => {
     currentZoom.value = map.getZoom()
@@ -897,6 +1085,35 @@ function removeFarmerMarker(farmer) {
   }
 }
 
+function clearAllFarmerMarkers() {
+  for (let i = farmerMarkers.length - 1; i >= 0; i--) {
+    if (farmerMarkers[i].marker && map) {
+      map.removeLayer(farmerMarkers[i].marker)
+    }
+  }
+  farmerMarkers.length = 0
+}
+
+function renderFarmersData(farmersList) {
+  clearAllFarmerMarkers()
+  farmers.value = Array.isArray(farmersList) ? farmersList : []
+  farmers.value.forEach(f => {
+    if (!f.parcels) {
+      f.parcels = []
+      if (f.coords && f.area) f.parcels.push({ area: Number(f.area), coords: String(f.coords) })
+    }
+    f.area = f.parcels.reduce((sum, p) => sum + (Number(p.area) || 0), 0)
+    f.parcels.forEach((p, idx) => {
+      if (p.coords) {
+        const [lat, lng] = p.coords.split(',').map(Number)
+        if (!isNaN(lat) && !isNaN(lng)) {
+          addFarmerMarker(f, lat, lng, idx)
+        }
+      }
+    })
+  })
+}
+
 // Sample Data & Storage
 function loadSampleData() {
   const saved = localStorage.getItem(STORAGE_KEY_FARMERS)
@@ -909,24 +1126,15 @@ function loadSampleData() {
   }
 
   if (!farmers.value || farmers.value.length === 0) {
-    farmers.value = [
-      { name: 'JUAN DELA CRUZ', location: 'ALCALA, CAGAYAN', commodity: 'Rice', parcels: [{ area: 12.5, coords: '17.9021,121.6560' }, { area: 5.3, coords: '17.9050,121.6600' }] },
-      { name: 'MARIA SANTOS', location: 'ALCALA, CAGAYAN', commodity: 'Corn', parcels: [{ area: 8.3, coords: '17.9100,121.6450' }] },
-      { name: 'PEDRO REYES', location: 'GATTARAN, CAGAYAN', commodity: 'Rice', parcels: [{ area: 15.7, coords: '18.0265,121.6484' }, { area: 3.2, coords: '18.0300,121.6500' }] },
-      { name: 'ANA GARCIA', location: 'LAL-LO, CAGAYAN', commodity: 'Vegetables', parcels: [{ area: 6.4, coords: '18.2167,121.6500' }] },
-      { name: 'ROBERTO LIM', location: 'BUGUEY, CAGAYAN', commodity: 'Corn', parcels: [{ area: 9.8, coords: '18.2833,121.8167' }, { area: 2.1, coords: '18.2900,121.8100' }, { area: 4.5, coords: '18.2750,121.8200' }] },
-      { name: 'LUISA MENDOZA', location: 'CAMALANIUGAN, CAGAYAN', commodity: 'Fruits', parcels: [{ area: 4.2, coords: '18.2500,121.6833' }] },
-      { name: 'RICARDO AQUINO', location: 'APARRI, CAGAYAN', commodity: 'Rice', parcels: [{ area: 11.3, coords: '18.3500,121.6167' }, { area: 6.8, coords: '18.3550,121.6200' }] },
-      { name: 'ELENA TORRES', location: 'ENRILE, CAGAYAN', commodity: 'Tobacco', parcels: [{ area: 7.6, coords: '17.5667,121.6500' }] },
-    ]
+    farmers.value = []
   }
 
   farmers.value.forEach(f => {
     if (!f.parcels) {
       f.parcels = []
-      if (f.coords && f.area) f.parcels.push({ area: f.area, coords: f.coords })
+      if (f.coords && f.area) f.parcels.push({ area: Number(f.area), coords: String(f.coords) })
     }
-    f.area = f.parcels.reduce((sum, p) => sum + (p.area || 0), 0)
+    f.area = f.parcels.reduce((sum, p) => sum + (Number(p.area) || 0), 0)
     f.parcels.forEach((p, idx) => {
       if (p.coords) {
         const [lat, lng] = p.coords.split(',').map(Number)
@@ -940,45 +1148,156 @@ function loadSampleData() {
 
 function persistFarmers() {
   try {
-    localStorage.setItem(STORAGE_KEY_FARMERS, JSON.stringify(farmers.value))
-  } catch (e) {}
+    const toSave = farmers.value.map(f => {
+      const parcels = (f.parcels && f.parcels.length > 0)
+        ? f.parcels.map(p => ({
+            area: Number(Number(p.area || 0).toFixed(4)),
+            coords: String(p.coords || '').trim()
+          }))
+        : (f.coords && f.area
+            ? [{ area: Number(Number(f.area).toFixed(4)), coords: String(f.coords).trim() }]
+            : [])
+      return {
+        name: (f.name || '').trim().toUpperCase(),
+        location: (f.location || 'ALCALA, CAGAYAN').trim().toUpperCase(),
+        commodity: f.commodity || 'Rice',
+        parcels
+      }
+    })
+    localStorage.setItem(STORAGE_KEY_FARMERS, JSON.stringify(toSave))
+    queueServerSync()
+  } catch (e) {
+    console.error('Error persisting farmers to localStorage:', e)
+  }
 }
 
 // Search
 function searchFarm() {
   const q = searchQuery.value.toLowerCase().trim()
-  if (!q) {
+  const loc = searchLocationFilter.value
+
+  if (!q && loc === 'All') {
     searchResults.value = []
     searchInfoItem.value = null
     return
   }
 
-  const farmerMatches = farmers.value
-    .filter(f => (f.name || '').toLowerCase().includes(q) ||
-                 (f.location || '').toLowerCase().includes(q) ||
-                 (f.commodity || '').toLowerCase().includes(q))
-    .map(f => ({ type: 'farmer', data: f, label: f.name }))
+  const unifiedMap = new Map()
 
-  const gpxMatches = uploadedFiles.value
-    .filter(g => {
-      const derived = deriveNameFromGPX(g.name)
-      return (g.name || '').toLowerCase().includes(q) || derived.toLowerCase().includes(q)
+  // 1. Process farmers
+  farmers.value.forEach(f => {
+    const name = (f.name || '').trim().toUpperCase()
+    const location = (f.location || 'ALCALA, CAGAYAN').trim().toUpperCase()
+    const commodity = f.commodity || 'Rice'
+
+    if (loc !== 'All' && !location.includes(loc.replace(', CAGAYAN', '').trim()) && location !== loc) {
+      return
+    }
+
+    if (q) {
+      const matchName = name.toLowerCase().includes(q)
+      const matchLoc = location.toLowerCase().includes(q)
+      const matchCrop = commodity.toLowerCase().includes(q)
+      if (!matchName && !matchLoc && !matchCrop) return
+    }
+
+    const matchingGpx = uploadedFiles.value.find(g => {
+      const gName = deriveNameFromGPX(g.name).toUpperCase()
+      return gName === name || g.name.toUpperCase().includes(name)
     })
-    .map(g => ({
-      type: 'gpx',
-      data: g,
-      label: deriveNameFromGPX(g.name) || g.name,
-      derivedName: deriveNameFromGPX(g.name)
-    }))
 
-  searchResults.value = [...farmerMatches, ...gpxMatches]
+    const totalArea = f.parcels ? f.parcels.reduce((s, p) => s + (Number(p.area) || 0), 0) : Number(f.area || 0)
+
+    unifiedMap.set(name, {
+      type: 'farmer',
+      name,
+      location,
+      commodity,
+      derivedName: name,
+      area: totalArea,
+      parcels: f.parcels || [],
+      data: {
+        ...f,
+        area: totalArea,
+        gpxFile: matchingGpx || null
+      },
+      gpx: matchingGpx || null,
+      label: name
+    })
+  })
+
+  // 2. Process uploaded GPX files that might not be in unifiedMap yet
+  uploadedFiles.value.forEach(g => {
+    const derived = deriveNameFromGPX(g.name).trim().toUpperCase()
+    if (unifiedMap.has(derived)) {
+      const existing = unifiedMap.get(derived)
+      if (!existing.gpx) {
+        existing.gpx = g
+        existing.data.gpxFile = g
+      }
+      return
+    }
+
+    const location = deriveLocationFromGPX(g.name).trim().toUpperCase()
+    const commodity = deriveCommodityFromGPX(g.name)
+
+    if (loc !== 'All' && !location.includes(loc.replace(', CAGAYAN', '').trim()) && location !== loc) {
+      return
+    }
+
+    if (q) {
+      const matchName = (g.name || '').toLowerCase().includes(q) || derived.toLowerCase().includes(q)
+      const matchLoc = location.toLowerCase().includes(q)
+      const matchCrop = commodity.toLowerCase().includes(q)
+      if (!matchName && !matchLoc && !matchCrop) return
+    }
+
+    unifiedMap.set(derived, {
+      type: 'gpx',
+      name: derived || g.name,
+      derivedName: derived,
+      location,
+      commodity,
+      area: g.areaHectares,
+      parcels: [{ area: g.areaHectares, coords: `${g.center.lat.toFixed(5)},${g.center.lng.toFixed(5)}` }],
+      data: {
+        ...g,
+        location,
+        commodity
+      },
+      gpx: g,
+      label: derived || g.name
+    })
+  })
+
+  searchResults.value = Array.from(unifiedMap.values())
   setStatus(
-    `Found ${searchResults.value.length} match(es) — ${farmerMatches.length} farmer(s), ${gpxMatches.length} GPX file(s)`,
+    `Found ${searchResults.value.length} unique farm area(s)${loc !== 'All' ? ` in ${loc}` : ''}`,
     searchResults.value.length > 0 ? 'success' : 'warning'
   )
 
   if (searchResults.value.length > 0) {
     openSearchInfo(searchResults.value[0])
+  } else {
+    searchInfoItem.value = null
+  }
+}
+
+const currentSearchInfoIndex = computed(() => {
+  if (!searchInfoItem.value || searchResults.value.length === 0) return 0
+  const idx = searchResults.value.findIndex(item => item === searchInfoItem.value || (item.name && searchInfoItem.value.name && item.name.toUpperCase() === searchInfoItem.value.name.toUpperCase()))
+  return idx >= 0 ? idx : 0
+})
+
+function prevSearchInfo() {
+  if (currentSearchInfoIndex.value > 0) {
+    searchInfoItem.value = searchResults.value[currentSearchInfoIndex.value - 1]
+  }
+}
+
+function nextSearchInfo() {
+  if (currentSearchInfoIndex.value < searchResults.value.length - 1) {
+    searchInfoItem.value = searchResults.value[currentSearchInfoIndex.value + 1]
   }
 }
 
@@ -992,26 +1311,56 @@ function closeSearchInfo() {
 
 function flyToResult(result) {
   if (!result || !map) return
-  if (result.type === 'gpx' && result.data) {
-    flyToGPX(result.data)
+  closeSearchInfo()
+
+  // Prefer GPX track boundary if available
+  const gpxObj = result.gpx || (result.type === 'gpx' ? result.data : null)
+  if (gpxObj && gpxObj.layer) {
+    flyToGPX(gpxObj)
     return
   }
+
   const farmer = result.data || result
   const firstParcel = farmer.parcels && farmer.parcels.length > 0 ? farmer.parcels[0] : null
   const coords = firstParcel && firstParcel.coords ? firstParcel.coords : farmer.coords
   if (coords) {
     const [lat, lng] = coords.split(',').map(Number)
     if (!isNaN(lat) && !isNaN(lng)) {
-      map.flyTo([lat, lng], 16, { duration: 1.2 })
-      setStatus(`Navigating to ${farmer.name}'s farm parcel`, 'success')
+      map.flyTo([lat, lng], 16, { duration: 1.0 })
+      setStatus(`Navigating to ${farmer.name || result.name}'s farm parcel`, 'success')
+
+      const fm = farmerMarkers.find(m => m.farmer === farmer || (m.farmer.name && (farmer.name || result.name) && m.farmer.name.toUpperCase() === (farmer.name || result.name).toUpperCase()))
+      if (fm && fm.marker) {
+        setTimeout(() => {
+          if (fm.marker) fm.marker.openPopup()
+        }, 300)
+        fm.marker.openPopup()
+      }
+      return
     }
+  }
+
+  if (gpxObj) {
+    flyToGPX(gpxObj)
   }
 }
 
 function flyToGPX(gpxFile) {
-  if (!gpxFile || !gpxFile.center || !map) return
-  map.flyTo([gpxFile.center.lat, gpxFile.center.lng], 16, { duration: 1.2 })
-  setStatus(`🎯 Zoomed to GPX track ${gpxFile.name}`, 'success')
+  if (!gpxFile || !map) return
+  closeSearchInfo()
+
+  if (gpxFile.layer) {
+    map.fitBounds(gpxFile.layer.getBounds(), { padding: [50, 50], maxZoom: 16 })
+    const popupPos = gpxFile.center ? [gpxFile.center.lat, gpxFile.center.lng] : gpxFile.layer.getBounds().getCenter()
+    setTimeout(() => {
+      if (gpxFile.layer) gpxFile.layer.openPopup(popupPos)
+    }, 300)
+    gpxFile.layer.openPopup(popupPos)
+    setStatus(`🎯 Zoomed to GPX track ${gpxFile.name}`, 'success')
+  } else if (gpxFile.center) {
+    map.flyTo([gpxFile.center.lat, gpxFile.center.lng], 16, { duration: 1.0 })
+    setStatus(`🎯 Zoomed to GPX track ${gpxFile.name}`, 'success')
+  }
 }
 
 // GPX Upload & Duplicate Detection
@@ -1063,26 +1412,27 @@ function checkDuplicateGPX(newPoints) {
   return null
 }
 
-function confirmDuplicateUpload(proceed) {
-  if (proceed && pendingDuplicateFile.value) {
-    const p = pendingDuplicateFile.value
-    const parsed = parseGPX(p.name, p.content)
-    if (parsed) {
-      const progIdx = uploadProgress.value.findIndex(x => x.name === p.name)
-      if (progIdx !== -1) {
-        uploadProgress.value[progIdx].percent = 100
-        uploadProgress.value[progIdx].status = 'done'
-      }
-      autoRegisterFromGPX(p.name)
-      success(`Imported duplicate track: ${p.name}`)
+let duplicateResolver = null
+
+function askDuplicateDecision(fileName, duplicateMatch) {
+  return new Promise((resolve) => {
+    pendingDuplicateFile.value = {
+      name: fileName,
+      duplicateName: duplicateMatch?.name || ''
     }
-  } else if (pendingDuplicateFile.value) {
-    const p = pendingDuplicateFile.value
-    const progIdx = uploadProgress.value.findIndex(x => x.name === p.name)
-    if (progIdx !== -1) uploadProgress.value.splice(progIdx, 1)
-    info(`Skipped duplicate ${p.name}`)
+    duplicateResolver = resolve
+  })
+}
+
+function confirmDuplicateUpload(proceed) {
+  if (duplicateResolver) {
+    const resolver = duplicateResolver
+    duplicateResolver = null
+    pendingDuplicateFile.value = null
+    resolver(proceed)
+  } else {
+    pendingDuplicateFile.value = null
   }
-  pendingDuplicateFile.value = null
 }
 
 async function processBatchFiles(files) {
@@ -1118,11 +1468,14 @@ async function processBatchFiles(files) {
       if (tempPoints.length > 0) {
         const duplicate = checkDuplicateGPX(tempPoints)
         if (duplicate) {
-          prog.status = 'pending'
-          prog.percent = 0
-          pendingDuplicateFile.value = { name: file.name, content: content }
           warning(`Duplicate detected: "${file.name}" matches "${duplicate.name}"`)
-          continue
+          const proceed = await askDuplicateDecision(file.name, duplicate)
+          if (!proceed) {
+            prog.status = 'skipped'
+            prog.percent = 100
+            info(`Skipped duplicate ${file.name}`)
+            continue
+          }
         }
       }
 
@@ -1147,10 +1500,11 @@ async function processBatchFiles(files) {
   }
 
   const successCount = uploadProgress.value.filter(p => p.status === 'done').length
-  success(`Batch upload completed: ${successCount}/${files.length} processed`)
+  const skipCount = uploadProgress.value.filter(p => p.status === 'skipped').length
+  success(`Batch upload completed: ${successCount} imported, ${skipCount} skipped (${files.length} total)`)
   setTimeout(() => {
     if (!pendingDuplicateFile.value) uploadProgress.value = []
-  }, 3500)
+  }, 4000)
 }
 
 function readFileAsync(file) {
@@ -1160,6 +1514,132 @@ function readFileAsync(file) {
     reader.onerror = reject
     reader.readAsText(file)
   })
+}
+
+function createGpxPolygonLayer(points, color, fileName, areaHectares, areaKm2, isEnclosed, centerLatVal, centerLngVal) {
+  const gpxLayer = L.polygon(points, {
+    color: color,
+    weight: 3,
+    opacity: 0.9,
+    fillColor: color,
+    fillOpacity: 0.25
+  })
+
+  const derivedName = deriveNameFromGPX(fileName)
+  const detectedCommodity = deriveCommodityFromGPX(fileName)
+  const detectedLocation = deriveLocationFromGPX(fileName)
+  const coordsStr = `${centerLatVal.toFixed(4)},${centerLngVal.toFixed(4)}`
+
+  gpxLayer.bindPopup(`
+    <div style="min-width:240px; font-family: inherit; font-size: 13px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; border-bottom:1px solid #eee; padding-bottom:4px;">
+        <h3 style="margin:0; color:#2e7d32; font-size:15px; font-weight:700;">${escapeHtml(derivedName)}</h3>
+        <span style="background:${color}; color:white; font-size:10.5px; font-weight:bold; padding:2px 7px; border-radius:10px;">${escapeHtml(detectedCommodity)}</span>
+      </div>
+      <p style="margin:3px 0; font-size:12px; color:#444;"><strong>Location:</strong> ${escapeHtml(detectedLocation)}</p>
+      <p style="margin:3px 0; font-size:12px; color:#444;"><strong>File:</strong> ${escapeHtml(fileName)}</p>
+      <p style="margin:3px 0; font-size:12px; color:#111;"><strong>Farm Area:</strong> <strong style="color:#2e7d32; font-size:13px;">${areaHectares.toFixed(4)} ha</strong> (${(areaKm2 * 1000000).toLocaleString(undefined, { maximumFractionDigits: 1 })} m²)</p>
+      <p style="margin:3px 0; font-size:11.5px; color:#666;"><strong>Boundary:</strong> ${isEnclosed ? 'Enclosed Polygon' : 'Track Polygon'} (${points.length} GPS pts)</p>
+      <div style="margin-top:6px; padding-top:6px; border-top:1px solid #eee; font-size:11px; color:#777;">
+        Coordinates: <span style="font-family:monospace; color:#333;">${coordsStr}</span>
+      </div>
+    </div>
+  `)
+
+  let startMarker = null
+  let endMarker = null
+  if (points.length > 1) {
+    const startIcon = L.divIcon({
+      className: 'track-marker',
+      html: `<div style="background:#4CAF50;width:12px;height:12px;border-radius:50%;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.4);"></div>`,
+      iconSize: [12, 12], iconAnchor: [6, 6]
+    })
+    const endIcon = L.divIcon({
+      className: 'track-marker',
+      html: `<div style="background:#F44336;width:12px;height:12px;border-radius:50%;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.4);"></div>`,
+      iconSize: [12, 12], iconAnchor: [6, 6]
+    })
+    startMarker = L.marker(points[0], { icon: startIcon })
+    endMarker = L.marker(points[points.length - 1], { icon: endIcon })
+    startMarker.bindPopup(`<strong>${escapeHtml(derivedName)}</strong><br>Track Start<br><small>${points[0][0].toFixed(5)}, ${points[0][1].toFixed(5)}</small>`)
+    endMarker.bindPopup(`<strong>${escapeHtml(derivedName)}</strong><br>Track End<br><small>${points[points.length - 1][0].toFixed(5)}, ${points[points.length - 1][1].toFixed(5)}</small>`)
+  }
+
+  return { gpxLayer, startMarker, endMarker }
+}
+
+function clearAllGpxTrackLayers() {
+  uploadedFiles.value.forEach(f => {
+    if (f.layer && map) map.removeLayer(f.layer)
+    if (f.startMarker && map) map.removeLayer(f.startMarker)
+    if (f.endMarker && map) map.removeLayer(f.endMarker)
+  })
+  uploadedFiles.value = []
+}
+
+function renderGpxTracksData(tracksList) {
+  clearAllGpxTrackLayers()
+  if (!Array.isArray(tracksList) || !map) return
+  tracksList.forEach(track => {
+    if (!track.points || track.points.length === 0) return
+    const center = track.center || { lat: 17.9021, lng: 121.6560 }
+    const { gpxLayer, startMarker, endMarker } = createGpxPolygonLayer(
+      track.points,
+      track.color || '#2196F3',
+      track.name,
+      track.areaHectares || 0,
+      track.areaKm2 || 0,
+      track.isEnclosed !== false,
+      center.lat,
+      center.lng
+    )
+    if (track.visible !== false) {
+      gpxLayer.addTo(map)
+      if (startMarker) startMarker.addTo(map)
+      if (endMarker) endMarker.addTo(map)
+    }
+    uploadedFiles.value.push({
+      ...track,
+      center,
+      layer: gpxLayer,
+      startMarker,
+      endMarker
+    })
+  })
+}
+
+function persistGpxTracks() {
+  try {
+    const dataToSave = uploadedFiles.value.map(f => ({
+      name: f.name,
+      points: f.points,
+      color: f.color,
+      center: f.center,
+      pointCount: f.pointCount,
+      visible: f.visible !== false,
+      areaKm2: f.areaKm2,
+      areaHectares: f.areaHectares,
+      areaMethod: f.areaMethod,
+      isEnclosed: f.isEnclosed
+    }))
+    localStorage.setItem(STORAGE_KEY_GPX_TRACKS, JSON.stringify(dataToSave))
+    queueServerSync()
+  } catch (e) {
+    console.error('Error persisting GPX tracks to localStorage:', e)
+  }
+}
+
+function loadSavedGpxTracks() {
+  const saved = localStorage.getItem(STORAGE_KEY_GPX_TRACKS)
+  if (!saved || !map) return
+  try {
+    const parsed = JSON.parse(saved)
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      renderGpxTracksData(parsed)
+    }
+  } catch (e) {
+    console.error('Error loading saved GPX tracks:', e)
+  }
 }
 
 function parseGPX(fileName, gpxContent) {
@@ -1192,29 +1672,6 @@ function parseGPX(fileName, gpxContent) {
     const colors = ['#2196F3', '#4CAF50', '#FF9800', '#9C27B0', '#F44336', '#00BCD4', '#795548', '#607D8B']
     const color = colors[uploadedFiles.value.length % colors.length]
 
-    const gpxLayer = L.polyline(points, {
-      color: color,
-      weight: 3,
-      opacity: 0.85
-    }).addTo(map)
-
-    let startMarker = null
-    let endMarker = null
-    if (points.length > 1) {
-      const startIcon = L.divIcon({
-        className: 'track-marker',
-        html: `<div style="background:#4CAF50;width:12px;height:12px;border-radius:50%;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.4);"></div>`,
-        iconSize: [12, 12], iconAnchor: [6, 6]
-      })
-      const endIcon = L.divIcon({
-        className: 'track-marker',
-        html: `<div style="background:#F44336;width:12px;height:12px;border-radius:50%;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.4);"></div>`,
-        iconSize: [12, 12], iconAnchor: [6, 6]
-      })
-      startMarker = L.marker(points[0], { icon: startIcon }).addTo(map)
-      endMarker = L.marker(points[points.length - 1], { icon: endIcon }).addTo(map)
-    }
-
     let areaKm2 = 0
     let areaMethod = 'convex-hull'
     const isEnclosed = isTrackEnclosed(points, 0.05)
@@ -1227,6 +1684,21 @@ function parseGPX(fileName, gpxContent) {
       areaMethod = 'convex-hull'
     }
     const areaHectares = areaKm2 * 100
+
+    const { gpxLayer, startMarker, endMarker } = createGpxPolygonLayer(
+      points,
+      color,
+      fileName,
+      areaHectares,
+      areaKm2,
+      isEnclosed,
+      centerLatVal,
+      centerLngVal
+    )
+
+    gpxLayer.addTo(map)
+    if (startMarker) startMarker.addTo(map)
+    if (endMarker) endMarker.addTo(map)
 
     uploadedFiles.value.push({
       name: fileName,
@@ -1244,6 +1716,7 @@ function parseGPX(fileName, gpxContent) {
       isEnclosed
     })
 
+    persistGpxTracks()
     map.fitBounds(gpxLayer.getBounds(), { padding: [50, 50] })
     return true
   } catch (err) {
@@ -1327,6 +1800,7 @@ function toggleFileVisibility(index) {
     if (file.startMarker) map.removeLayer(file.startMarker)
     if (file.endMarker) map.removeLayer(file.endMarker)
   }
+  persistGpxTracks()
 }
 
 function fitToFile(index) {
@@ -1338,8 +1812,12 @@ function fitToFile(index) {
 
 function removeFile(index) {
   const file = uploadedFiles.value[index]
+  if (file.layer && map) map.removeLayer(file.layer)
+  if (file.startMarker && map) map.removeLayer(file.startMarker)
+  if (file.endMarker && map) map.removeLayer(file.endMarker)
   uploadedFiles.value.splice(index, 1)
-  info(`Removed ${file.name} from list (track remains on map)`)
+  persistGpxTracks()
+  info(`Removed ${file.name} from list and map`)
 }
 
 function showAllFiles() {
@@ -1350,6 +1828,7 @@ function showAllFiles() {
     if (f.startMarker) f.startMarker.addTo(map)
     if (f.endMarker) f.endMarker.addTo(map)
   })
+  persistGpxTracks()
   success('All GPX tracks visible')
 }
 
@@ -1361,15 +1840,77 @@ function hideAllFiles() {
     if (f.startMarker) map.removeLayer(f.startMarker)
     if (f.endMarker) map.removeLayer(f.endMarker)
   })
+  persistGpxTracks()
   info('All GPX tracks hidden')
 }
 
 function removeAllFiles() {
+  if (map) {
+    uploadedFiles.value.forEach(f => {
+      if (f.layer) map.removeLayer(f.layer)
+      if (f.startMarker) map.removeLayer(f.startMarker)
+      if (f.endMarker) map.removeLayer(f.endMarker)
+    })
+  }
   uploadedFiles.value = []
-  info('Cleared GPX list')
+  persistGpxTracks()
+  info('Cleared GPX list and tracks')
 }
 
 // Farmer Registration & Autofill
+function deriveCommodityFromGPX(fileName) {
+  const upper = (fileName || '').toUpperCase()
+  if (upper.includes('TOBACCO')) return 'Tobacco'
+  if (upper.includes('CORN') || upper.includes('MAIS')) return 'Corn'
+  if (upper.includes('RICE') || upper.includes('PALAY')) return 'Rice'
+  if (upper.includes('VEGETABLE') || upper.includes('GULAY') || upper.includes('ONION') || upper.includes('GARLIC') || upper.includes('PEPPER') || upper.includes('EGGPLANT') || upper.includes('TOMATO') || upper.includes('CASSAVA')) return 'Vegetables'
+  if (upper.includes('FRUIT') || upper.includes('PRUTAS') || upper.includes('BANANA') || upper.includes('MANGO')) return 'Fruits'
+  return 'Rice'
+}
+
+function deriveLocationFromGPX(fileName) {
+  const upper = (fileName || '').toUpperCase()
+  const locations = [
+    { key: 'ENRILE', name: 'ENRILE, CAGAYAN' },
+    { key: 'ALCALA', name: 'ALCALA, CAGAYAN' },
+    { key: 'GATTARAN', name: 'GATTARAN, CAGAYAN' },
+    { key: 'LAL-LO', name: 'LAL-LO, CAGAYAN' },
+    { key: 'LALLO', name: 'LAL-LO, CAGAYAN' },
+    { key: 'BUGUEY', name: 'BUGUEY, CAGAYAN' },
+    { key: 'CAMALANIUGAN', name: 'CAMALANIUGAN, CAGAYAN' },
+    { key: 'APARRI', name: 'APARRI, CAGAYAN' },
+    { key: 'TUGUEGARAO', name: 'TUGUEGARAO, CAGAYAN' },
+    { key: 'SOLANA', name: 'SOLANA, CAGAYAN' },
+    { key: 'AMULUNG', name: 'AMULUNG, CAGAYAN' },
+    { key: 'BAGGAO', name: 'BAGGAO, CAGAYAN' },
+    { key: 'PEÑABLANCA', name: 'PEÑABLANCA, CAGAYAN' },
+    { key: 'PENABLANCA', name: 'PEÑABLANCA, CAGAYAN' },
+    { key: 'IGUIG', name: 'IGUIG, CAGAYAN' },
+    { key: 'ALLACAPAN', name: 'ALLACAPAN, CAGAYAN' },
+    { key: 'LASAM', name: 'LASAM, CAGAYAN' },
+    { key: 'SANTO NIÑO', name: 'SANTO NIÑO, CAGAYAN' },
+    { key: 'SANTO NINO', name: 'SANTO NIÑO, CAGAYAN' },
+    { key: 'BALLESTEROS', name: 'BALLESTEROS, CAGAYAN' },
+    { key: 'ABULUG', name: 'ABULUG, CAGAYAN' },
+    { key: 'PAMPLONA', name: 'PAMPLONA, CAGAYAN' },
+    { key: 'SANCHEZ MIRA', name: 'SANCHEZ MIRA, CAGAYAN' },
+    { key: 'CLAVERIA', name: 'CLAVERIA, CAGAYAN' },
+    { key: 'SANTA PRAXEDES', name: 'SANTA PRAXEDES, CAGAYAN' },
+    { key: 'SANTA TERESITA', name: 'SANTA TERESITA, CAGAYAN' },
+    { key: 'GONZAGA', name: 'GONZAGA, CAGAYAN' },
+    { key: 'STA. ANA', name: 'SANTA ANA, CAGAYAN' },
+    { key: 'SANTA ANA', name: 'SANTA ANA, CAGAYAN' },
+    { key: 'PIAT', name: 'PIAT, CAGAYAN' },
+    { key: 'FAIRE', name: 'SANTO NIÑO, CAGAYAN' },
+    { key: 'RIZAL', name: 'RIZAL, CAGAYAN' },
+    { key: 'TUAO', name: 'TUAO, CAGAYAN' }
+  ]
+  for (const loc of locations) {
+    if (upper.includes(loc.key)) return loc.name
+  }
+  return 'ALCALA, CAGAYAN'
+}
+
 function deriveNameFromGPX(fileName) {
   let name = (fileName || '').replace(/\.gpx$/i, '')
   name = name.replace(/[_\-.]+/g, ' ').replace(/\s+/g, ' ').trim().toUpperCase()
@@ -1405,7 +1946,9 @@ function autoFillFromGPX(fileIndex) {
   newFarmer.value.name = derived
   newFarmer.value.area = file.areaHectares.toFixed(4)
   autoPopulatedArea.value = file.areaHectares
-  newFarmer.value.coords = `${file.center.lat.toFixed(6)},${file.center.lng.toFixed(6)}`
+  newFarmer.value.coords = `${file.center.lat.toFixed(4)},${file.center.lng.toFixed(4)}`
+  newFarmer.value.commodity = deriveCommodityFromGPX(file.name)
+  newFarmer.value.location = deriveLocationFromGPX(file.name)
 
   setStatus(`Auto-filled "${derived}" (${file.areaHectares.toFixed(4)} ha) from ${file.name}`, 'success')
 }
@@ -1421,14 +1964,31 @@ function autoRegisterFromGPX(fileName) {
   const file = uploadedFiles.value.find(f => f.name === fileName)
   if (!file) return null
   const derived = deriveNameFromGPX(file.name)
-  const coords = `${file.center.lat.toFixed(6)},${file.center.lng.toFixed(6)}`
+  const coords = `${file.center.lat.toFixed(4)},${file.center.lng.toFixed(4)}`
+  const areaHa = Number(Number(file.areaHectares).toFixed(4))
+  const commodity = deriveCommodityFromGPX(file.name)
+  const location = deriveLocationFromGPX(file.name)
+
+  const existingFarmer = farmers.value.find(f => f.name.toUpperCase() === derived.toUpperCase())
+  if (existingFarmer) {
+    if (!existingFarmer.parcels) existingFarmer.parcels = []
+    const alreadyHasCoord = existingFarmer.parcels.some(p => p.coords === coords)
+    if (!alreadyHasCoord) {
+      existingFarmer.parcels.push({ area: areaHa, coords })
+      existingFarmer.area = existingFarmer.parcels.reduce((sum, p) => sum + (Number(p.area) || 0), 0)
+      addFarmerMarker(existingFarmer, file.center.lat, file.center.lng, existingFarmer.parcels.length - 1)
+    }
+    persistFarmers()
+    return existingFarmer
+  }
+
   const farmer = {
     name: derived,
-    location: 'GPS UPLOAD',
-    commodity: 'Rice',
-    parcels: [{ area: file.areaHectares, coords }],
-    area: file.areaHectares
+    location,
+    commodity,
+    parcels: [{ area: areaHa, coords }]
   }
+  farmer.area = areaHa
   farmers.value.push(farmer)
   persistFarmers()
   addFarmerMarker(farmer, file.center.lat, file.center.lng, 0)
@@ -1485,8 +2045,16 @@ function locateFarmer(index) {
   if (coords && map) {
     const [lat, lng] = coords.split(',').map(Number)
     if (!isNaN(lat) && !isNaN(lng)) {
-      map.flyTo([lat, lng], 16, { duration: 1.2 })
+      map.flyTo([lat, lng], 16, { duration: 1.0 })
       setStatus(`Locating ${farmer.name}`, 'info')
+
+      const fm = farmerMarkers.find(m => m.farmer === farmer || (m.farmer.name && farmer.name && m.farmer.name.toUpperCase() === farmer.name.toUpperCase()))
+      if (fm && fm.marker) {
+        setTimeout(() => {
+          if (fm.marker) fm.marker.openPopup()
+        }, 300)
+        fm.marker.openPopup()
+      }
       return
     }
   }
@@ -1654,9 +2222,100 @@ function createHeatmap() {
 }
 
 // Map Layer & View Switchers
+function initBoundaryLayer() {
+  if (!map) return
+
+  if (boundaryLayer) {
+    if (map.hasLayer(boundaryLayer)) map.removeLayer(boundaryLayer)
+    boundaryLayer = null
+  }
+
+  boundaryLayer = L.geoJSON(alcalaBoundaryGeoJson, {
+    style: () => ({
+      color: '#15803d',
+      weight: 1.8,
+      opacity: 0.85,
+      dashArray: '4, 4',
+      fill: false,
+      fillOpacity: 0
+    }),
+    onEachFeature: (feature, layer) => {
+      const props = feature.properties || {}
+      const bgyName = props.ADM4_EN || 'Barangay'
+      const areaHa = props.Shape_Area ? (props.Shape_Area / 10000).toFixed(2) : '—'
+
+      layer.bindTooltip(`
+        <div style="font-weight:650;font-size:12px;color:#14532d;line-height:1.3;">
+          🏛️ Brgy. ${escapeHtml(bgyName)}
+        </div>
+        <div style="font-size:10.5px;color:#4b5563;margin-top:2px;">
+          Area: ${areaHa} ha
+        </div>
+      `, {
+        sticky: true,
+        direction: 'top',
+        className: 'boundary-map-tooltip'
+      })
+
+      layer.on('mouseover', () => {
+        layer.setStyle({
+          color: '#047857',
+          weight: 2.5,
+          opacity: 1,
+          dashArray: '',
+          fill: false,
+          fillOpacity: 0
+        })
+      })
+
+      layer.on('mouseout', () => {
+        layer.setStyle({
+          color: '#15803d',
+          weight: 1.8,
+          opacity: 0.85,
+          dashArray: '4, 4',
+          fill: false,
+          fillOpacity: 0
+        })
+      })
+    }
+  })
+
+  if (boundaryVisible.value) {
+    boundaryLayer.addTo(map)
+  }
+}
+
+function toggleBoundaryLayer() {
+  boundaryVisible.value = !boundaryVisible.value
+  if (!map) return
+
+  if (!boundaryLayer) {
+    initBoundaryLayer()
+  }
+
+  if (boundaryVisible.value) {
+    if (boundaryLayer && !map.hasLayer(boundaryLayer)) {
+      boundaryLayer.addTo(map)
+    }
+    info('🏛️ Alcala Boundary layer enabled')
+    setStatus('Alcala boundary layer visible', 'info')
+  } else {
+    if (boundaryLayer && map.hasLayer(boundaryLayer)) {
+      map.removeLayer(boundaryLayer)
+    }
+    info('Alcala Boundary layer hidden')
+    setStatus('Alcala boundary layer hidden', 'info')
+  }
+}
+
 function resetView() {
   if (map) {
-    map.flyTo(ALCALA_CENTER, 13, { duration: 1.2 })
+    if (boundaryLayer && boundaryVisible.value && map.hasLayer(boundaryLayer)) {
+      map.flyToBounds(boundaryLayer.getBounds(), { padding: [20, 20], duration: 1.2 })
+    } else {
+      map.flyTo(ALCALA_CENTER, 13, { duration: 1.2 })
+    }
     setStatus('View reset to Alcala, Cagayan', 'info')
   }
 }
@@ -1742,30 +2401,63 @@ function exportFarmersJSON() {
   success('Exported farmers to JSON')
 }
 
-function exportGPX() {
+async function exportGPX() {
   if (uploadedFiles.value.length === 0) {
     warning('No GPX tracks available to export.')
     return
   }
-  uploadedFiles.value.forEach(file => {
-    let gpx = `<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="FarmArea GIS Alcala">\n  <trk>\n    <name>${file.name}</name>\n    <trkseg>`
-    file.points.forEach(pt => {
-      gpx += `\n      <trkpt lat="${pt[0]}" lon="${pt[1]}"></trkpt>`
+
+  try {
+    setStatus('Packaging GPX tracks by location into ZIP...', 'info')
+
+    const zipEntries = []
+
+    uploadedFiles.value.forEach(file => {
+      let rawLoc = deriveLocationFromGPX(file.name) || 'ALCALA'
+      // Clean and sanitize folder name (e.g., 'ENRILE, CAGAYAN' -> 'ENRILE')
+      let cleanLoc = rawLoc.replace(/,.*$/, '').trim().replace(/[\\/:*?"<>|]/g, '_') || 'UNSPECIFIED_LOCATION'
+
+      let gpx = `<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="FarmArea GIS Alcala">\n  <trk>\n    <name>${file.name}</name>\n    <trkseg>`
+      file.points.forEach(pt => {
+        gpx += `\n      <trkpt lat="${pt[0]}" lon="${pt[1]}"></trkpt>`
+      })
+      gpx += `\n    </trkseg>\n  </trk>\n</gpx>`
+
+      const safeFileName = file.name.toLowerCase().endsWith('.gpx') ? file.name : `${file.name}.gpx`
+      const zipPath = `${cleanLoc}/${safeFileName}`
+
+      zipEntries.push({
+        name: zipPath,
+        input: gpx
+      })
     })
-    gpx += `\n    </trkseg>\n  </trk>\n</gpx>`
-    downloadFile(gpx, `export_${file.name}`, 'application/gpx+xml')
-  })
-  success(`Exported ${uploadedFiles.value.length} GPX files`)
+
+    const zipBlob = await downloadZip(zipEntries).blob()
+    const dateStr = new Date().toISOString().slice(0, 10)
+    downloadBlob(zipBlob, `farm_area_gpx_tracks_by_location_${dateStr}.zip`)
+    success(`Successfully exported ${uploadedFiles.value.length} GPX tracks organized by location into ZIP!`)
+    setStatus(`Exported ${uploadedFiles.value.length} GPX file(s) into ZIP`, 'success')
+  } catch (err) {
+    console.error('Error generating GPX zip:', err)
+    error('Failed to generate GPX ZIP file.')
+    setStatus('Export failed', 'error')
+  }
 }
 
-function downloadFile(content, filename, mimeType) {
-  const blob = new Blob([content], { type: mimeType })
+function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
   a.download = filename
+  document.body.appendChild(a)
   a.click()
+  document.body.removeChild(a)
   URL.revokeObjectURL(url)
+}
+
+function downloadFile(content, filename, mimeType) {
+  const blob = new Blob([content], { type: mimeType })
+  downloadBlob(blob, filename)
 }
 
 // Helpers
@@ -1802,9 +2494,154 @@ function escapeHtml(str) {
     .replace(/'/g, '&#039;')
 }
 
-onMounted(() => {
+function queueServerSync() {
+  if (saveDebounceTimer) clearTimeout(saveDebounceTimer)
+  saveDebounceTimer = setTimeout(() => {
+    syncAllToServer(false, true)
+  }, 1200)
+}
+
+async function fetchGisDataFromServer(showNotification = false) {
+  syncStatus.value = 'syncing'
+  syncStatusText.value = 'Syncing...'
+  try {
+    const token = localStorage.getItem('token')
+    const res = await fetch(`${API_BASE}/gis/sync`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      }
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const data = await res.json()
+    if (data.code === 200) {
+      const serverFarmers = Array.isArray(data.farmers) ? data.farmers : []
+      const serverTracks = Array.isArray(data.gpx_tracks) ? data.gpx_tracks : []
+
+      const hasServerData = serverFarmers.length > 0 || serverTracks.length > 0
+      const hasLocalData = (farmers.value && farmers.value.length > 0) || (uploadedFiles.value && uploadedFiles.value.length > 0)
+
+      if (hasServerData) {
+        renderFarmersData(serverFarmers)
+        renderGpxTracksData(serverTracks)
+
+        // Save fresh data into localStorage
+        localStorage.setItem(STORAGE_KEY_FARMERS, JSON.stringify(serverFarmers))
+        const tracksToSave = serverTracks.map(f => ({
+          name: f.name,
+          points: f.points,
+          color: f.color,
+          center: f.center,
+          pointCount: f.pointCount,
+          visible: f.visible !== false,
+          areaKm2: f.areaKm2,
+          areaHectares: f.areaHectares,
+          areaMethod: f.areaMethod,
+          isEnclosed: f.isEnclosed
+        }))
+        localStorage.setItem(STORAGE_KEY_GPX_TRACKS, JSON.stringify(tracksToSave))
+
+        syncStatus.value = 'synced'
+        syncStatusText.value = `In sync (${serverFarmers.length} farmers, ${serverTracks.length} tracks)`
+        lastSyncTime.value = new Date().toLocaleTimeString()
+        if (showNotification) {
+          success(`Latest GIS data loaded (${serverFarmers.length} farmers, ${serverTracks.length} tracks)`)
+        }
+      } else if (hasLocalData) {
+        // Initial migration: upload local data to server
+        await syncAllToServer(true, true)
+      } else {
+        syncStatus.value = 'synced'
+        syncStatusText.value = 'In sync (0 records)'
+        lastSyncTime.value = new Date().toLocaleTimeString()
+      }
+    }
+  } catch (err) {
+    console.warn('Server GIS sync warning (using offline/local mode):', err)
+    syncStatus.value = 'offline'
+    syncStatusText.value = 'Local only (Offline)'
+    if (showNotification) {
+      info('Working in offline mode with local storage data')
+    }
+  }
+}
+
+async function syncAllToServer(isInitialMigration = false, silent = false) {
+  syncStatus.value = 'syncing'
+  syncStatusText.value = 'Uploading to server...'
+  try {
+    const token = localStorage.getItem('token')
+    const farmersToUpload = farmers.value.map(f => {
+      const parcels = (f.parcels && f.parcels.length > 0)
+        ? f.parcels.map(p => ({
+            area: Number(Number(p.area || 0).toFixed(4)),
+            coords: String(p.coords || '').trim()
+          }))
+        : (f.coords && f.area
+            ? [{ area: Number(Number(f.area).toFixed(4)), coords: String(f.coords).trim() }]
+            : [])
+      return {
+        name: (f.name || '').trim().toUpperCase(),
+        location: (f.location || 'ALCALA, CAGAYAN').trim().toUpperCase(),
+        commodity: f.commodity || 'Rice',
+        area: Number(f.area || 0),
+        parcels
+      }
+    })
+
+    const tracksToUpload = uploadedFiles.value.map(f => ({
+      name: f.name,
+      points: f.points,
+      color: f.color,
+      center: f.center,
+      pointCount: f.pointCount,
+      visible: f.visible !== false,
+      areaKm2: f.areaKm2,
+      areaHectares: f.areaHectares,
+      areaMethod: f.areaMethod,
+      isEnclosed: f.isEnclosed
+    }))
+
+    const res = await fetch(`${API_BASE}/gis/sync`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      },
+      body: JSON.stringify({
+        farmers: farmersToUpload,
+        gpx_tracks: tracksToUpload
+      })
+    })
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const result = await res.json()
+
+    if (result.code === 200) {
+      syncStatus.value = 'synced'
+      syncStatusText.value = `In sync (${farmersToUpload.length} farmers, ${tracksToUpload.length} tracks)`
+      lastSyncTime.value = new Date().toLocaleTimeString()
+      if (!silent) {
+        success(isInitialMigration ? 'Local GIS data synced to server!' : 'All GIS data saved to server!')
+      }
+    } else {
+      throw new Error(result.message || 'Sync failed')
+    }
+  } catch (err) {
+    console.error('Failed to sync GIS data with server:', err)
+    syncStatus.value = 'offline'
+    syncStatusText.value = 'Local only (Server unreachable)'
+    if (!silent) {
+      warning('Data saved locally. Server unreachable.')
+    }
+  }
+}
+
+onMounted(async () => {
   initMap()
   loadSampleData()
+  loadSavedGpxTracks()
+  await fetchGisDataFromServer(false)
 })
 
 onBeforeUnmount(() => {
@@ -2579,6 +3416,14 @@ onBeforeUnmount(() => {
   gap: 0.35rem;
 }
 
+.boundary-indicator {
+  color: var(--brand-700, #15803d);
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
 /* App Status Bar */
 .app-status-bar {
   height: 28px;
@@ -2707,6 +3552,22 @@ onBeforeUnmount(() => {
   color: var(--text-secondary);
 }
 
+.modal-title-group {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.modal-counter-badge {
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: var(--bg-muted);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
 .modal-footer {
   padding: 0.75rem 1.25rem;
   border-top: 1px solid var(--border);
@@ -2714,6 +3575,34 @@ onBeforeUnmount(() => {
   justify-content: flex-end;
   gap: 0.5rem;
   background: var(--bg-muted);
+}
+
+.modal-footer-split {
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.modal-nav-group {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.nav-count-pill {
+  font-size: 0.75rem;
+  font-family: var(--font-mono, monospace);
+  font-weight: 600;
+  color: var(--text-secondary);
+  padding: 0 4px;
+}
+
+.modal-action-group {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-left: auto;
 }
 
 .edit-form-body {
@@ -2772,6 +3661,142 @@ onBeforeUnmount(() => {
   text-overflow: ellipsis;
 }
 .btn-icon { width: 16px; height: 16px; }
+
+/* Sync Header Pill & Controls */
+.sync-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.76rem;
+  background: var(--bg-muted);
+  border: 1px solid var(--border);
+  padding: 0.28rem 0.6rem;
+  border-radius: 20px;
+  color: var(--text-secondary);
+  transition: all 180ms ease;
+}
+
+.sync-pill.sync-synced {
+  border-color: rgba(46, 125, 50, 0.3);
+  background: rgba(46, 125, 50, 0.08);
+}
+
+.sync-pill.sync-syncing {
+  border-color: rgba(237, 137, 54, 0.3);
+  background: rgba(237, 137, 54, 0.08);
+}
+
+.sync-pill.sync-offline {
+  border-color: var(--border);
+  opacity: 0.85;
+}
+
+.sync-pill.sync-error {
+  border-color: rgba(211, 47, 47, 0.3);
+  background: rgba(211, 47, 47, 0.08);
+}
+
+.sync-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.btn-sync-action {
+  background: transparent;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px;
+  margin-left: 2px;
+  border-radius: 4px;
+  transition: color 150ms ease, background 150ms ease;
+}
+
+.btn-sync-action:hover:not(:disabled) {
+  color: var(--brand-600);
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.btn-sync-icon {
+  width: 13px;
+  height: 13px;
+}
+
+.rotating-icon {
+  animation: spin 1.2s linear infinite;
+}
+
+@keyframes spin {
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* Sidebar Cloud Sync Card */
+.sync-card-block {
+  background: var(--bg-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.sync-info-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.sync-status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.sync-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #9e9e9e;
+}
+
+.indicator-synced .sync-status-dot { background: #2e7d32; box-shadow: 0 0 6px rgba(46, 125, 50, 0.5); }
+.indicator-synced .sync-status-title { color: #2e7d32; }
+
+.indicator-syncing .sync-status-dot { background: #ed8936; animation: pulse 1s infinite; }
+.indicator-syncing .sync-status-title { color: #c05621; }
+
+.indicator-offline .sync-status-dot { background: #757575; }
+.indicator-offline .sync-status-title { color: var(--text-muted); }
+
+.indicator-error .sync-status-dot { background: #d32f2f; }
+.indicator-error .sync-status-title { color: #d32f2f; }
+
+@keyframes pulse {
+  0% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.85); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+.sync-timestamp {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.sync-actions-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
 
 @media (max-width: 860px) {
   .gis-workspace {

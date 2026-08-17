@@ -1,7 +1,7 @@
 <template>
   <Transition name="modal-fade" appear>
-    <div class="modal-overlay" @click.self="!persistent && $emit('close')">
-      <section :class="['modal-content', `modal-${size}`]" role="dialog" aria-modal="true" :aria-label="title">
+    <div :class="['modal-overlay', { 'has-full-height': fullHeight }]" @click.self="!persistent && $emit('close')">
+      <section :class="['modal-content', `modal-${size}`, { 'modal-full-height': fullHeight }]" role="dialog" aria-modal="true" :aria-label="title">
         <div class="modal-header">
           <h3 class="modal-title">{{ title }}</h3>
           <button
@@ -24,11 +24,18 @@ defineProps({
   title: String,
   size: { type: String, default: 'md' },
   persistent: { type: Boolean, default: false },
+  fullHeight: { type: Boolean, default: false },
 })
 defineEmits(['close'])
 </script>
 
 <style scoped>
+.has-full-height {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  align-items: stretch;
+}
+
 .modal-header {
   display: flex;
   align-items: center;
@@ -69,4 +76,12 @@ defineEmits(['close'])
 .modal-lg { max-width: 860px; }
 .modal-xl { max-width: 1140px; }
 .modal-full { max-width: 95vw; }
+
+.modal-full-height {
+  height: 100vh !important;
+  height: 100dvh !important;
+  max-height: 100vh !important;
+  max-height: 100dvh !important;
+  border-radius: 0 !important;
+}
 </style>

@@ -656,6 +656,32 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import * as turf from '@turf/turf'
 import { Chart, registerables } from 'chart.js'
+import proj4 from 'proj4'
+import alcalaBoundaryRaw from '@/assets/AlcalaBoundary.json'
+
+// Register UTM Zone 51N projection (EPSG:32651)
+proj4.defs('EPSG:32651', '+proj=utm +zone=51 +datum=WGS84 +units=m +no_defs')
+
+// Convert Alcala boundary coordinates from EPSG:32651 to standard WGS84 [lng, lat]
+function convertUtmCoords(coords) {
+  if (typeof coords[0] === 'number') {
+    return proj4('EPSG:32651', 'EPSG:4326', coords)
+  }
+  return coords.map(convertUtmCoords)
+}
+
+const alcalaBoundaryGeoJson = {
+  ...alcalaBoundaryRaw,
+  crs: { type: 'name', properties: { name: 'urn:ogc:def:crs:OGC:1.3:CRS84' } },
+  features: (alcalaBoundaryRaw.features || []).map(f => ({
+    ...f,
+    geometry: {
+      ...f.geometry,
+      coordinates: convertUtmCoords(f.geometry.coordinates)
+    }
+  }))
+}
+
 Chart.register(...registerables)
 
 const { toast, success, warning, error, info } = useToast()
@@ -713,6 +739,7 @@ let barChartInstance = null
 
 // Layers map
 const mapLayers = {
+  boundary: null,
   road: null,
   landuse: null,
   buffer: null,
@@ -1056,13 +1083,73 @@ function parseGeoJSON(text) {
   throw new Error('Unrecognized GeoJSON structure: ' + data.type)
 }
 
+// Boundary Layer Adder
+function addBoundaryLayer() {
+  if (!map) return
+  if (mapLayers.boundary) {
+    if (map.hasLayer(mapLayers.boundary)) map.removeLayer(mapLayers.boundary)
+    mapLayers.boundary = null
+  }
+
+  mapLayers.boundary = L.geoJSON(alcalaBoundaryGeoJson, {
+    style: () => ({
+      color: '#15803d',
+      weight: 1.8,
+      opacity: 0.85,
+      dashArray: '4, 4',
+      fill: false,
+      fillOpacity: 0
+    }),
+    onEachFeature: (feature, layer) => {
+      const props = feature.properties || {}
+      const bgyName = props.ADM4_EN || 'Barangay'
+      const areaHa = props.Shape_Area ? (props.Shape_Area / 10000).toFixed(2) : '—'
+
+      layer.bindTooltip(`
+        <div style="font-weight:650;font-size:12px;color:#14532d;line-height:1.3;">
+          🏛️ Brgy. ${escapeHtml(bgyName)}
+        </div>
+        <div style="font-size:10.5px;color:#4b5563;margin-top:2px;">
+          Area: ${areaHa} ha
+        </div>
+      `, {
+        sticky: true,
+        direction: 'top',
+        className: 'boundary-map-tooltip'
+      })
+
+      layer.on('mouseover', () => {
+        layer.setStyle({
+          color: '#047857',
+          weight: 2.5,
+          opacity: 1,
+          dashArray: '',
+          fill: false,
+          fillOpacity: 0
+        })
+      })
+
+      layer.on('mouseout', () => {
+        layer.setStyle({
+          color: '#15803d',
+          weight: 1.8,
+          opacity: 0.85,
+          dashArray: '4, 4',
+          fill: false,
+          fillOpacity: 0
+        })
+      })
+    }
+  }).addTo(map)
+}
+
 // Map Initialization
 function initMap() {
   if (map || !mapContainer.value) return
 
   map = L.map(mapContainer.value, {
     center: ALCALA_CENTER,
-    zoom: 14,
+    zoom: 13,
     zoomControl: true,
     attributionControl: true,
   })
@@ -1085,8 +1172,21 @@ function initMap() {
     'Satellite View': satLayer,
   }
 
-  L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map)
+  // Add Alcala Boundary as default layer
+  addBoundaryLayer()
+
+  const overlays = {
+    'Alcala Boundary': mapLayers.boundary,
+  }
+
+  L.control.layers(baseMaps, overlays, { position: 'topright' }).addTo(map)
   L.control.scale({ imperial: false, metric: true, position: 'bottomleft' }).addTo(map)
+
+  try {
+    if (mapLayers.boundary) {
+      map.fitBounds(mapLayers.boundary.getBounds(), { padding: [20, 20] })
+    }
+  } catch (e) {}
 
   map.on('click', e => {
     const lat = e.latlng.lat.toFixed(5)
@@ -1317,7 +1417,7 @@ function updateLegend() {
 
   if (!items.length) return
 
-  mapLayers.legend = L.control({ position: 'bottomright' })
+  mapLayers.legend = L.control({ position: 'topleft' })
   mapLayers.legend.onAdd = () => {
     const div = L.DomUtil.create('div', 'map-legend-box')
     div.style.cssText = 'background: var(--bg-elevated, #ffffff); color: var(--text, #111); padding: 8px 12px; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.25); font-size: 11px; line-height: 1.5; max-height: 220px; overflow-y: auto; min-width: 160px; border: 1px solid var(--border, #ddd);'
@@ -1350,7 +1450,12 @@ function fitAllData() {
   if (mapLayers.buffer) {
     try { bounds.push(mapLayers.buffer.getBounds()) } catch (e) {}
   }
-  if (!bounds.length) return
+  if (!bounds.length) {
+    if (mapLayers.boundary) {
+      try { map.fitBounds(mapLayers.boundary.getBounds(), { padding: [20, 20] }) } catch (e) {}
+    }
+    return
+  }
   try {
     let combined = bounds[0]
     for (let i = 1; i < bounds.length; i++) combined.extend(bounds[i])
@@ -1571,15 +1676,14 @@ async function generateBuffer() {
         throw new Error('No valid road lines found to buffer.')
       }
 
-      let merged = buffers[0]
-      for (let i = 1; i < buffers.length; i++) {
+      let merged = null
+      if (buffers.length === 1) {
+        merged = buffers[0]
+      } else {
         try {
-          merged = turf.union(merged, buffers[i])
+          merged = turf.union(turf.featureCollection(buffers))
         } catch (e) {
-          merged = turf.featureCollection([
-            ...(merged.type === 'FeatureCollection' ? merged.features : [merged]),
-            ...(buffers[i].type === 'FeatureCollection' ? buffers[i].features : [buffers[i]]),
-          ])
+          merged = turf.featureCollection(buffers)
         }
       }
 
@@ -1629,15 +1733,18 @@ function computeAnalysis() {
   const landuse = landUseData.value
   const field = selectedLandUseField.value
 
-  let mergedBuffer = buffer.features[0]
-  if (buffer.features.length > 1) {
-    for (let i = 1; i < buffer.features.length; i++) {
-      try {
-        mergedBuffer = turf.union(mergedBuffer, buffer.features[i])
-      } catch (e) {}
+  let mergedBuffer = null
+  if (buffer.features.length === 1) {
+    mergedBuffer = buffer.features[0]
+  } else if (buffer.features.length > 1) {
+    try {
+      mergedBuffer = turf.union(turf.featureCollection(buffer.features))
+    } catch (e) {
+      mergedBuffer = null
     }
   }
 
+  const bufFeatures = mergedBuffer ? [mergedBuffer] : buffer.features
   const intersections = []
   const areaByType = {}
   let totalClippedArea = 0
@@ -1646,10 +1753,21 @@ function computeAnalysis() {
   landuse.features.forEach(f => {
     if (!f.geometry || (f.geometry.type !== 'Polygon' && f.geometry.type !== 'MultiPolygon')) return
 
+    const polyFeat = turf.feature(f.geometry)
     let clipped = null
-    try {
-      clipped = turf.intersect(turf.feature(f.geometry), mergedBuffer)
-    } catch (e) {}
+
+    for (const bf of bufFeatures) {
+      try {
+        const inter = turf.intersect(turf.featureCollection([polyFeat, bf]))
+        if (inter) {
+          if (!clipped) {
+            clipped = inter
+          } else {
+            clipped = turf.union(turf.featureCollection([clipped, inter])) || clipped
+          }
+        }
+      } catch (e) {}
+    }
 
     if (!clipped) return
     hasOverlap = true
@@ -1677,12 +1795,14 @@ function computeAnalysis() {
   })
 
   let bufferAreaSqm = 0
-  try { bufferAreaSqm = turf.area(mergedBuffer); } catch (e) {}
+  try {
+    bufferAreaSqm = mergedBuffer ? turf.area(mergedBuffer) : turf.area(buffer)
+  } catch (e) {}
 
   if (!hasOverlap) {
     let gapKm = null
     try {
-      const bBox = turf.bbox(mergedBuffer)
+      const bBox = turf.bbox(mergedBuffer || buffer)
       const lBox = turf.bbox(landuse)
       const bCenter = [(bBox[0] + bBox[2]) / 2, (bBox[1] + bBox[3]) / 2]
       const lCenter = [(lBox[0] + lBox[2]) / 2, (lBox[1] + lBox[3]) / 2]

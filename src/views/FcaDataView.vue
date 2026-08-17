@@ -1,10 +1,10 @@
 <template>
   <div class="fca-data-view app-page">
     <BreadcrumbNav :items="[{ label: 'Home', to: '/' }, { label: 'FCAs', to: '/fcas' }, { label: fca.general.name || 'FCA Details' }]" />
-    <TitleBar :title="fca.general.name || 'FCA Details'" :icon="Document20" />
+    <!-- <TitleBar :title="fca.general.name || 'FCA Details'" :icon="Document20" /> -->
 
     <!-- Tabs -->
-    <div class="tabs settings-tabs">
+    <div class="tabs settings-tabs" style="margin-top: 10px">
       <button
         :class="['tab-btn', activeTab === 'profile' ? 'active' : '']"
         @click="activeTab = 'profile'"
@@ -140,7 +140,7 @@
     </div>
 
     <!-- Edit Modal -->
-    <Modal v-if="showEdit" title="Edit FCA Profile" size="xl" @close="closeEditModal">
+    <Modal v-if="showEdit" title="Edit FCA Profile" size="xl" full-height @close="closeEditModal">
       <FcaForm
         :initialData="fca"
         :editMode="true"
@@ -270,7 +270,7 @@ onMounted(() => {
 
 <style scoped>
 .fca-data-view {
-  max-width: 1100px;
+  max-width: 100%;
   margin: 0 auto;
   padding: 2rem 1rem;
   color: var(--text);
