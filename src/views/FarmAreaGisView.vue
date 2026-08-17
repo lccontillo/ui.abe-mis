@@ -755,7 +755,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick, markRaw } from 'vue'
 import BreadcrumbNav from '@/components/BreadcrumbNav.vue'
 import {
   Map20,
@@ -820,6 +820,9 @@ const { confirm } = useConfirmDialog()
 // State
 const mapContainer = ref(null)
 let map = null
+let farmerLayerGroup = null
+let gpxTracksLayerGroup = null
+let drawnLayerGroup = null
 
 const sidebarCollapsed = ref(false)
 const uploadPanelCollapsed = ref(false)
@@ -938,7 +941,11 @@ const extraLayerIcon = computed(() => {
 
 // Map Initialization
 function initMap() {
-  if (!mapContainer.value || map) return
+  if (!mapContainer.value) return
+  if (map) {
+    map.remove()
+    map = null
+  }
 
   map = L.map(mapContainer.value, {
     center: ALCALA_CENTER,
@@ -946,6 +953,11 @@ function initMap() {
     zoomControl: true,
     attributionControl: true
   })
+
+  // Layer groups for clean multi-user sync and zero zoom drift
+  farmerLayerGroup = L.layerGroup().addTo(map)
+  gpxTracksLayerGroup = L.layerGroup().addTo(map)
+  drawnLayerGroup = L.layerGroup().addTo(map)
 
   const terrain = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '© OpenStreetMap contributors',
@@ -1032,17 +1044,18 @@ function initMap() {
 
 // Marker Handling
 function addFarmerMarker(farmer, lat, lng, parcelIndex = 0) {
-  if (!map) return
+  if (!map || !farmerLayerGroup) return
   const isPrimary = parcelIndex === 0
   const parcelColors = ['#2e7d32', '#1e88e5', '#f9a825', '#8e24aa', '#e53935', '#00acc1']
   const color = parcelColors[parcelIndex % parcelColors.length]
   const icon = L.divIcon({
-    className: 'farmer-marker-icon',
-    html: `<div style="background:${color}; width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:bold; color:white; border:2px solid white; box-shadow:0 2px 6px rgba(0,0,0,0.3);">${parcelIndex + 1}</div>`,
+    className: 'custom-farmer-marker',
+    html: `<div style="box-sizing:border-box; width:28px; height:28px; border-radius:50%; background:${color}; border:2px solid #ffffff; box-shadow:0 2px 6px rgba(0,0,0,0.35); display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:bold; color:#ffffff; line-height:1; user-select:none;">${parcelIndex + 1}</div>`,
     iconSize: [28, 28],
-    iconAnchor: [14, 14]
+    iconAnchor: [14, 14],
+    popupAnchor: [0, -14]
   })
-  const marker = L.marker([lat, lng], { icon }).addTo(map)
+  const marker = L.marker([lat, lng], { icon })
   marker._farmerRef = farmer
   marker._parcelIndex = parcelIndex
 
@@ -1073,22 +1086,32 @@ function addFarmerMarker(farmer, lat, lng, parcelIndex = 0) {
       </div>
     </div>
   `)
-  farmerMarkers.push({ marker, farmer })
+  farmerLayerGroup.addLayer(marker)
+  farmerMarkers.push({ marker: markRaw(marker), farmer })
 }
 
 function removeFarmerMarker(farmer) {
   for (let i = farmerMarkers.length - 1; i >= 0; i--) {
-    if (farmerMarkers[i].farmer === farmer) {
-      if (map) map.removeLayer(farmerMarkers[i].marker)
+    const fm = farmerMarkers[i]
+    if (fm.farmer === farmer || (fm.farmer && fm.farmer.name && farmer && farmer.name && fm.farmer.name.toUpperCase() === farmer.name.toUpperCase())) {
+      if (farmerLayerGroup && fm.marker) {
+        farmerLayerGroup.removeLayer(fm.marker)
+      } else if (map && fm.marker) {
+        map.removeLayer(fm.marker)
+      }
       farmerMarkers.splice(i, 1)
     }
   }
 }
 
 function clearAllFarmerMarkers() {
-  for (let i = farmerMarkers.length - 1; i >= 0; i--) {
-    if (farmerMarkers[i].marker && map) {
-      map.removeLayer(farmerMarkers[i].marker)
+  if (farmerLayerGroup) {
+    farmerLayerGroup.clearLayers()
+  } else if (map) {
+    for (let i = farmerMarkers.length - 1; i >= 0; i--) {
+      if (farmerMarkers[i].marker) {
+        map.removeLayer(farmerMarkers[i].marker)
+      }
     }
   }
   farmerMarkers.length = 0
@@ -1550,14 +1573,18 @@ function createGpxPolygonLayer(points, color, fileName, areaHectares, areaKm2, i
   let endMarker = null
   if (points.length > 1) {
     const startIcon = L.divIcon({
-      className: 'track-marker',
-      html: `<div style="background:#4CAF50;width:12px;height:12px;border-radius:50%;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.4);"></div>`,
-      iconSize: [12, 12], iconAnchor: [6, 6]
+      className: 'custom-track-marker',
+      html: `<div style="box-sizing:border-box; width:14px; height:14px; border-radius:50%; background:#4CAF50; border:2px solid #ffffff; box-shadow:0 1px 4px rgba(0,0,0,0.4);"></div>`,
+      iconSize: [14, 14],
+      iconAnchor: [7, 7],
+      popupAnchor: [0, -7]
     })
     const endIcon = L.divIcon({
-      className: 'track-marker',
-      html: `<div style="background:#F44336;width:12px;height:12px;border-radius:50%;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.4);"></div>`,
-      iconSize: [12, 12], iconAnchor: [6, 6]
+      className: 'custom-track-marker',
+      html: `<div style="box-sizing:border-box; width:14px; height:14px; border-radius:50%; background:#F44336; border:2px solid #ffffff; box-shadow:0 1px 4px rgba(0,0,0,0.4);"></div>`,
+      iconSize: [14, 14],
+      iconAnchor: [7, 7],
+      popupAnchor: [0, -7]
     })
     startMarker = L.marker(points[0], { icon: startIcon })
     endMarker = L.marker(points[points.length - 1], { icon: endIcon })
@@ -1569,17 +1596,21 @@ function createGpxPolygonLayer(points, color, fileName, areaHectares, areaKm2, i
 }
 
 function clearAllGpxTrackLayers() {
-  uploadedFiles.value.forEach(f => {
-    if (f.layer && map) map.removeLayer(f.layer)
-    if (f.startMarker && map) map.removeLayer(f.startMarker)
-    if (f.endMarker && map) map.removeLayer(f.endMarker)
-  })
+  if (gpxTracksLayerGroup) {
+    gpxTracksLayerGroup.clearLayers()
+  } else if (map) {
+    uploadedFiles.value.forEach(f => {
+      if (f.layer) map.removeLayer(f.layer)
+      if (f.startMarker) map.removeLayer(f.startMarker)
+      if (f.endMarker) map.removeLayer(f.endMarker)
+    })
+  }
   uploadedFiles.value = []
 }
 
 function renderGpxTracksData(tracksList) {
   clearAllGpxTrackLayers()
-  if (!Array.isArray(tracksList) || !map) return
+  if (!Array.isArray(tracksList) || !map || !gpxTracksLayerGroup) return
   tracksList.forEach(track => {
     if (!track.points || track.points.length === 0) return
     const center = track.center || { lat: 17.9021, lng: 121.6560 }
@@ -1594,16 +1625,16 @@ function renderGpxTracksData(tracksList) {
       center.lng
     )
     if (track.visible !== false) {
-      gpxLayer.addTo(map)
-      if (startMarker) startMarker.addTo(map)
-      if (endMarker) endMarker.addTo(map)
+      gpxTracksLayerGroup.addLayer(gpxLayer)
+      if (startMarker) gpxTracksLayerGroup.addLayer(startMarker)
+      if (endMarker) gpxTracksLayerGroup.addLayer(endMarker)
     }
     uploadedFiles.value.push({
       ...track,
       center,
-      layer: gpxLayer,
-      startMarker,
-      endMarker
+      layer: markRaw(gpxLayer),
+      startMarker: startMarker ? markRaw(startMarker) : null,
+      endMarker: endMarker ? markRaw(endMarker) : null
     })
   })
 }
@@ -1696,15 +1727,21 @@ function parseGPX(fileName, gpxContent) {
       centerLngVal
     )
 
-    gpxLayer.addTo(map)
-    if (startMarker) startMarker.addTo(map)
-    if (endMarker) endMarker.addTo(map)
+    if (gpxTracksLayerGroup) {
+      gpxTracksLayerGroup.addLayer(gpxLayer)
+      if (startMarker) gpxTracksLayerGroup.addLayer(startMarker)
+      if (endMarker) gpxTracksLayerGroup.addLayer(endMarker)
+    } else if (map) {
+      gpxLayer.addTo(map)
+      if (startMarker) startMarker.addTo(map)
+      if (endMarker) endMarker.addTo(map)
+    }
 
     uploadedFiles.value.push({
       name: fileName,
-      layer: gpxLayer,
-      startMarker,
-      endMarker,
+      layer: markRaw(gpxLayer),
+      startMarker: startMarker ? markRaw(startMarker) : null,
+      endMarker: endMarker ? markRaw(endMarker) : null,
       center: { lat: centerLatVal, lng: centerLngVal },
       pointCount: points.length,
       visible: true,
@@ -1717,7 +1754,7 @@ function parseGPX(fileName, gpxContent) {
     })
 
     persistGpxTracks()
-    map.fitBounds(gpxLayer.getBounds(), { padding: [50, 50] })
+    if (map) map.fitBounds(gpxLayer.getBounds(), { padding: [50, 50] })
     return true
   } catch (err) {
     console.error('parseGPX error:', err)
@@ -1790,15 +1827,15 @@ function convexHull(points) {
 function toggleFileVisibility(index) {
   const file = uploadedFiles.value[index]
   file.visible = !file.visible
-  if (!map) return
+  if (!map || !gpxTracksLayerGroup) return
   if (file.visible) {
-    file.layer.addTo(map)
-    if (file.startMarker) file.startMarker.addTo(map)
-    if (file.endMarker) file.endMarker.addTo(map)
+    if (file.layer) gpxTracksLayerGroup.addLayer(file.layer)
+    if (file.startMarker) gpxTracksLayerGroup.addLayer(file.startMarker)
+    if (file.endMarker) gpxTracksLayerGroup.addLayer(file.endMarker)
   } else {
-    map.removeLayer(file.layer)
-    if (file.startMarker) map.removeLayer(file.startMarker)
-    if (file.endMarker) map.removeLayer(file.endMarker)
+    if (file.layer) gpxTracksLayerGroup.removeLayer(file.layer)
+    if (file.startMarker) gpxTracksLayerGroup.removeLayer(file.startMarker)
+    if (file.endMarker) gpxTracksLayerGroup.removeLayer(file.endMarker)
   }
   persistGpxTracks()
 }
@@ -1812,45 +1849,43 @@ function fitToFile(index) {
 
 function removeFile(index) {
   const file = uploadedFiles.value[index]
-  if (file.layer && map) map.removeLayer(file.layer)
-  if (file.startMarker && map) map.removeLayer(file.startMarker)
-  if (file.endMarker && map) map.removeLayer(file.endMarker)
+  if (gpxTracksLayerGroup) {
+    if (file.layer) gpxTracksLayerGroup.removeLayer(file.layer)
+    if (file.startMarker) gpxTracksLayerGroup.removeLayer(file.startMarker)
+    if (file.endMarker) gpxTracksLayerGroup.removeLayer(file.endMarker)
+  }
   uploadedFiles.value.splice(index, 1)
   persistGpxTracks()
   info(`Removed ${file.name} from list and map`)
 }
 
 function showAllFiles() {
-  if (!map) return
+  if (!map || !gpxTracksLayerGroup) return
   uploadedFiles.value.forEach(f => {
     f.visible = true
-    f.layer.addTo(map)
-    if (f.startMarker) f.startMarker.addTo(map)
-    if (f.endMarker) f.endMarker.addTo(map)
+    if (f.layer) gpxTracksLayerGroup.addLayer(f.layer)
+    if (f.startMarker) gpxTracksLayerGroup.addLayer(f.startMarker)
+    if (f.endMarker) gpxTracksLayerGroup.addLayer(f.endMarker)
   })
   persistGpxTracks()
   success('All GPX tracks visible')
 }
 
 function hideAllFiles() {
-  if (!map) return
+  if (!map || !gpxTracksLayerGroup) return
   uploadedFiles.value.forEach(f => {
     f.visible = false
-    map.removeLayer(f.layer)
-    if (f.startMarker) map.removeLayer(f.startMarker)
-    if (f.endMarker) map.removeLayer(f.endMarker)
+    if (f.layer) gpxTracksLayerGroup.removeLayer(f.layer)
+    if (f.startMarker) gpxTracksLayerGroup.removeLayer(f.startMarker)
+    if (f.endMarker) gpxTracksLayerGroup.removeLayer(f.endMarker)
   })
   persistGpxTracks()
   info('All GPX tracks hidden')
 }
 
 function removeAllFiles() {
-  if (map) {
-    uploadedFiles.value.forEach(f => {
-      if (f.layer) map.removeLayer(f.layer)
-      if (f.startMarker) map.removeLayer(f.startMarker)
-      if (f.endMarker) map.removeLayer(f.endMarker)
-    })
+  if (gpxTracksLayerGroup) {
+    gpxTracksLayerGroup.clearLayers()
   }
   uploadedFiles.value = []
   persistGpxTracks()
@@ -2130,9 +2165,11 @@ function toggleDrawMode() {
 function addDrawMarker(latlng) {
   if (!map) return
   const icon = L.divIcon({
-    className: 'draw-marker-icon',
-    html: `<div style="background:#FF9800;width:10px;height:10px;border-radius:50%;border:2px solid white;box-shadow:0 1px 3px rgba(0,0,0,0.3);"></div>`,
-    iconSize: [10, 10], iconAnchor: [5, 5]
+    className: 'custom-draw-marker',
+    html: `<div style="box-sizing:border-box; width:10px; height:10px; border-radius:50%; background:#FF9800; border:2px solid #ffffff; box-shadow:0 1px 3px rgba(0,0,0,0.3);"></div>`,
+    iconSize: [10, 10],
+    iconAnchor: [5, 5],
+    popupAnchor: [0, -5]
   })
   const marker = L.marker(latlng, { icon }).addTo(map)
   drawnMarkers.push(marker)
@@ -2164,9 +2201,11 @@ function measureArea() {
   const center = polygon.getBounds().getCenter()
   const labelMarker = L.marker(center, {
     icon: L.divIcon({
-      className: 'area-label',
-      html: `<div style="background:rgba(33,150,243,0.92);color:white;padding:3px 8px;border-radius:4px;font-size:11px;font-weight:bold;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.2);">${areaHa.toFixed(4)} ha</div>`,
-      iconSize: [140, 24], iconAnchor: [70, 12]
+      className: 'custom-area-label',
+      html: `<div style="box-sizing:border-box; background:rgba(33,150,243,0.92); color:#ffffff; padding:3px 8px; border-radius:4px; font-size:11px; font-weight:bold; white-space:nowrap; text-align:center; box-shadow:0 2px 6px rgba(0,0,0,0.2); display:inline-block; line-height:1.2;">${areaHa.toFixed(4)} ha</div>`,
+      iconSize: [100, 24],
+      iconAnchor: [50, 12],
+      popupAnchor: [0, -12]
     })
   }).addTo(map)
   drawnMarkers.push(labelMarker)
@@ -2645,6 +2684,22 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  if (farmerLayerGroup) {
+    farmerLayerGroup.clearLayers()
+    farmerLayerGroup = null
+  }
+  if (gpxTracksLayerGroup) {
+    gpxTracksLayerGroup.clearLayers()
+    gpxTracksLayerGroup = null
+  }
+  if (drawnLayerGroup) {
+    drawnLayerGroup.clearLayers()
+    drawnLayerGroup = null
+  }
+  if (boundaryLayer && map) {
+    map.removeLayer(boundaryLayer)
+    boundaryLayer = null
+  }
   if (map) {
     map.remove()
     map = null
@@ -3796,6 +3851,34 @@ onBeforeUnmount(() => {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.5rem;
+}
+
+/* Leaflet Marker Reset - prevents marker drift when zooming in/out */
+:deep(.leaflet-marker-icon),
+:deep(.leaflet-div-icon),
+:deep(.custom-farmer-marker),
+:deep(.custom-track-marker),
+:deep(.custom-draw-marker),
+:deep(.custom-area-label),
+:deep(.farmer-marker-icon),
+:deep(.track-marker),
+:deep(.draw-marker-icon),
+:deep(.area-label) {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  margin: 0;
+  box-sizing: border-box !important;
+}
+
+:deep(.leaflet-pane img) {
+  max-width: none !important;
+  max-height: none !important;
+}
+
+:deep(.leaflet-tile-container img) {
+  max-width: none !important;
+  max-height: none !important;
 }
 
 @media (max-width: 860px) {
