@@ -1086,41 +1086,40 @@ function jumpToParcel(farmerName, parcelIdx) {
     return
   }
 
-  // 1. Try to find corresponding GPX track for this farmer / parcel
+  // 1. Try to find a GPX track whose center/points closely match this specific parcel's coordinates (~100m)
   const matchingGpx = uploadedFiles.value.find(track => {
-    // Exact filename match if recorded
-    if (farmer.gpxFileName && farmer.gpxFileName === track.name) return true
-    if (farmer.gpxFileNames && Array.isArray(farmer.gpxFileNames) && farmer.gpxFileNames.includes(track.name)) return true
-    
-    // Proximity match to track center
-    if (track.center && Math.abs(track.center.lat - pLat) < 0.001 && Math.abs(track.center.lng - pLng) < 0.001) {
+    if (track.center && Math.abs(track.center.lat - pLat) < 0.0015 && Math.abs(track.center.lng - pLng) < 0.0015) {
       return true
     }
     return false
   })
 
-  if (matchingGpx && matchingGpx.layer) {
-    flyToGPX(matchingGpx)
-    return
-  }
-
-  // 2. Fly to parcel coordinate and open parcel marker popup
-  map.flyTo([pLat, pLng], 17, { duration: 1.0 })
-  setStatus(`Navigating to ${farmer.name} - Parcel #${parcelIdx + 1}`, 'info')
-
+  // 2. Find the exact marker for this parcel index
   const fm = farmerMarkers.find(m => 
     (m.farmer === farmer || (m.farmer && m.farmer.name && m.farmer.name.toUpperCase() === target)) && 
     m.parcelIndex === parcelIdx
-  ) || farmerMarkers.find(m => 
-    m.farmer === farmer || (m.farmer && m.farmer.name && m.farmer.name.toUpperCase() === target)
   )
 
-  if (fm && fm.marker) {
-    setTimeout(() => {
-      if (fm.marker) fm.marker.openPopup()
-    }, 300)
-    fm.marker.openPopup()
+  if (matchingGpx && matchingGpx.layer) {
+    if (matchingGpx.layer.getBounds) {
+      map.fitBounds(matchingGpx.layer.getBounds(), { padding: [50, 50], maxZoom: 17 })
+    } else {
+      map.flyTo([pLat, pLng], 17, { duration: 1.0 })
+    }
+  } else {
+    map.flyTo([pLat, pLng], 17, { duration: 1.0 })
   }
+
+  setStatus(`Navigating to ${farmer.name} - Parcel #${parcelIdx + 1}`, 'info')
+
+  setTimeout(() => {
+    if (fm && fm.marker) {
+      fm.marker.openPopup()
+    } else if (matchingGpx && matchingGpx.layer) {
+      const popupPos = matchingGpx.center ? [matchingGpx.center.lat, matchingGpx.center.lng] : [pLat, pLng]
+      matchingGpx.layer.openPopup(popupPos)
+    }
+  }, 350)
 }
 
 function buildFarmerPopupHtml(farmer, parcelIndex = 0, lat = 0, lng = 0) {
