@@ -21,6 +21,14 @@
       >
         Users
       </RouterLink>
+      <RouterLink
+        v-if="userStore.user?.is_admin"
+        to="/settings/gis"
+        class="tab-btn"
+        exact-active-class="active"
+      >
+        GIS Data
+      </RouterLink>
       <RouterLink to="/settings/logs" class="tab-btn" exact-active-class="active"
         >Activity Log</RouterLink
       >
@@ -38,7 +46,12 @@ import TitleBar from '@/components/TitleBar.vue'
 import { Settings20 } from '@carbon/icons-vue'
 import { useUserStore } from '@/stores/user'
 const userStore = useUserStore()
-// const user = ref(null)
+
+onMounted(async () => {
+  if (!userStore.user) {
+    await userStore.fetchMe()
+  }
+})
 
 // onMounted(async () => {
 //   const token = localStorage.getItem('token')

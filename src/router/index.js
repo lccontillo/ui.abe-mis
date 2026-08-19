@@ -16,6 +16,7 @@ import SettingsView from '@/views/SettingsView.vue'
 import AccountSettings from '@/views/AccountSettings.vue'
 import NetworkPlanView from '@/views/NetworkPlanView.vue'
 import FarmAreaGisView from '@/views/FarmAreaGisView.vue'
+import GisSettings from '@/views/GisSettings.vue'
 // GISToolsView is deprecated in favor of NetworkPlanView
 // import GISToolsView from '@/views/GISToolsView.vue'
 
@@ -105,6 +106,11 @@ const router = createRouter({
           path: 'logs',
           name: 'LogsSettings',
           component: AuditLogView,
+        },
+        {
+          path: 'gis',
+          name: 'GisSettings',
+          component: GisSettings,
         },
       ],
     },

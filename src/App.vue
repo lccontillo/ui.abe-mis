@@ -28,18 +28,8 @@ const isMobileMenuOpen = ref(false)
 const isLoginRoute = computed(() => route.path === '/login')
 
 onMounted(async () => {
-  const token = localStorage.getItem('token')
-  if (!token) return
-
-  const res = await fetch('https://api-abealcala.duckdns.org/me', {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-  })
-  const data = await res.json()
-  if (data.code === 200) {
-    user.value = data.user
+  if (!userStore.user) {
+    await userStore.fetchMe()
   }
 })
 

@@ -3,7 +3,7 @@
     <BreadcrumbNav :items="[{ label: 'Home', to: '/' }, { label: 'Settings', to: '/settings' }, { label: 'Users' }]" />
     <TitleBar title="Users" />
     
-    <div class="page-actions">
+    <div class="page-actions" style="margin-bottom: 10px">
       <button class="btn btn-primary" type="button" @click="openCreateModal">+ Create User</button>
     </div>
 

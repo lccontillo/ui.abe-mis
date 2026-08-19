@@ -7,7 +7,7 @@
         <tr>
           <th v-for="col in columns" :key="col.key" @click="col.sortable && onSort(col.key)">
             {{ col.label }}
-            <span v-if="sort.column === col.key">
+            <span v-if="sort?.column === col.key">
               {{ sort.order === 'asc' ? '▲' : '▼' }}
             </span>
           </th>

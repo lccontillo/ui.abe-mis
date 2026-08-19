@@ -2483,22 +2483,34 @@ onBeforeUnmount(() => {
 
 .field-label-sm {
   display: block;
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   font-weight: 700;
   text-transform: uppercase;
+  letter-spacing: 0.03em;
   color: var(--text-secondary);
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.15rem;
 }
 
-.field-control-sm {
+.field-control-sm,
+select.field-control-sm,
+input.field-control-sm {
   width: 100%;
-  min-height: 32px;
-  font-size: 0.82rem;
-  padding: 0.35rem 0.55rem;
+  height: 28px !important;
+  min-height: 28px !important;
+  max-height: 28px !important;
+  line-height: 28px;
+  font-size: 0.78rem;
+  padding: 0 0.55rem;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
   background: var(--bg-elevated);
   color: var(--text);
+  box-sizing: border-box;
+}
+
+select.field-control-sm {
+  padding-right: 1.2rem;
+  cursor: pointer;
 }
 
 /* Quick Metrics */
@@ -2512,7 +2524,7 @@ onBeforeUnmount(() => {
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 0.5rem;
+  padding: 0.45rem;
   text-align: center;
 }
 
@@ -2527,7 +2539,7 @@ onBeforeUnmount(() => {
 
 .stat-card-value {
   display: block;
-  font-size: 0.95rem;
+  font-size: 0.92rem;
   font-weight: 800;
   color: var(--brand-700);
   margin-top: 2px;
@@ -2535,48 +2547,62 @@ onBeforeUnmount(() => {
 
 /* Params & Actions */
 .param-row {
-  margin-bottom: 0.65rem;
+  margin-bottom: 0.45rem;
 }
 
 .param-label {
   display: block;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
   color: var(--text-secondary);
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.15rem;
 }
 
 .input-with-unit {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.35rem;
 }
 
 .unit-text {
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   color: var(--text-muted);
 }
 
 .action-buttons-group {
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
-  margin-top: 0.75rem;
+  gap: 0.35rem;
+  margin-top: 0.55rem;
 }
 
 .btn-icon {
-  width: 16px;
-  height: 16px;
+  width: 15px;
+  height: 15px;
 }
 
 .btn-block {
   width: 100%;
 }
 
-.btn-sm {
-  min-height: 32px;
-  padding: 0.35rem 0.65rem;
-  font-size: 0.8rem;
+.btn-sm,
+.action-buttons-group .btn,
+.proposal-inputs .btn,
+.export-buttons .btn {
+  height: 28px !important;
+  min-height: 28px !important;
+  max-height: 28px !important;
+  line-height: 28px;
+  padding: 0 0.65rem;
+  font-size: 0.76rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  box-sizing: border-box;
 }
 
 .btn-accent {
@@ -2592,13 +2618,13 @@ onBeforeUnmount(() => {
 .proposal-inputs {
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
+  gap: 0.35rem;
 }
 
 .export-buttons {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 0.35rem;
 }
 
 .sidebar-footer {
