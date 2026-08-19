@@ -1068,20 +1068,83 @@ function initMap() {
 }
 
 // Marker Handling & Dynamic Popup Generators
+function jumpToParcel(farmerName, parcelIdx) {
+  if (!farmerName || !map) return
+  const target = String(farmerName).trim().toUpperCase()
+  const farmer = farmers.value.find(f => f.name && f.name.trim().toUpperCase() === target)
+  if (!farmer || !farmer.parcels || !farmer.parcels[parcelIdx]) return
+
+  const parcel = farmer.parcels[parcelIdx]
+  if (!parcel.coords) {
+    warning(`No coordinates found for Parcel #${parcelIdx + 1}`)
+    return
+  }
+
+  const [pLat, pLng] = parcel.coords.split(',').map(Number)
+  if (isNaN(pLat) || isNaN(pLng)) {
+    warning(`Invalid coordinates for Parcel #${parcelIdx + 1}`)
+    return
+  }
+
+  // 1. Try to find corresponding GPX track for this farmer / parcel
+  const matchingGpx = uploadedFiles.value.find(track => {
+    // Exact filename match if recorded
+    if (farmer.gpxFileName && farmer.gpxFileName === track.name) return true
+    if (farmer.gpxFileNames && Array.isArray(farmer.gpxFileNames) && farmer.gpxFileNames.includes(track.name)) return true
+    
+    // Proximity match to track center
+    if (track.center && Math.abs(track.center.lat - pLat) < 0.001 && Math.abs(track.center.lng - pLng) < 0.001) {
+      return true
+    }
+    return false
+  })
+
+  if (matchingGpx && matchingGpx.layer) {
+    flyToGPX(matchingGpx)
+    return
+  }
+
+  // 2. Fly to parcel coordinate and open parcel marker popup
+  map.flyTo([pLat, pLng], 17, { duration: 1.0 })
+  setStatus(`Navigating to ${farmer.name} - Parcel #${parcelIdx + 1}`, 'info')
+
+  const fm = farmerMarkers.find(m => 
+    (m.farmer === farmer || (m.farmer && m.farmer.name && m.farmer.name.toUpperCase() === target)) && 
+    m.parcelIndex === parcelIdx
+  ) || farmerMarkers.find(m => 
+    m.farmer === farmer || (m.farmer && m.farmer.name && m.farmer.name.toUpperCase() === target)
+  )
+
+  if (fm && fm.marker) {
+    setTimeout(() => {
+      if (fm.marker) fm.marker.openPopup()
+    }, 300)
+    fm.marker.openPopup()
+  }
+}
+
 function buildFarmerPopupHtml(farmer, parcelIndex = 0, lat = 0, lng = 0) {
   if (!farmer) return ''
   const parcelColors = ['#2e7d32', '#1e88e5', '#f9a825', '#8e24aa', '#e53935', '#00acc1']
+  const safeName = escapeHtml(farmer.name).replace(/'/g, "\\'")
   let parcelsHtml = ''
   if (farmer.parcels && farmer.parcels.length > 0) {
     parcelsHtml = '<div style="margin-top:8px; border-top:1px solid #eee; padding-top:6px; font-size:12px;"><strong>Parcels:</strong><div style="margin-top:4px;">'
     farmer.parcels.forEach((p, i) => {
       const pColor = parcelColors[i % parcelColors.length]
       const active = i === parcelIndex ? 'font-weight:bold;' : ''
-      parcelsHtml += `<div style="margin:2px 0; font-size:11.5px; ${active}">`
-      parcelsHtml += `<span style="display:inline-block;width:16px;height:16px;border-radius:50%;background:${pColor};color:white;font-size:10px;text-align:center;line-height:16px;margin-right:4px;">${i + 1}</span> `
-      parcelsHtml += `${(p.area != null ? Number(p.area).toFixed(4) : '—')} ha — ${p.coords || 'no coords'}`
-      if (i === parcelIndex) parcelsHtml += ' ◀'
-      parcelsHtml += '</div>'
+      parcelsHtml += `
+        <div 
+          class="popup-parcel-row"
+          style="margin:3px 0; font-size:11.5px; ${active} cursor:pointer; display:flex; align-items:center; padding:2px 4px; border-radius:4px; transition:background 0.15s ease;" 
+          title="Click to jump to Parcel #${i + 1}"
+          onclick="window.jumpToParcelByPopup('${safeName}', ${i})"
+        >
+          <span style="display:inline-block;width:16px;height:16px;border-radius:50%;background:${pColor};color:white;font-size:10px;text-align:center;line-height:16px;margin-right:6px;flex-shrink:0;">${i + 1}</span>
+          <span style="text-decoration:underline; text-underline-offset:2px;">${(p.area != null ? Number(p.area).toFixed(4) : '—')} ha — ${p.coords || 'no coords'}</span>
+          ${i === parcelIndex ? '<span style="margin-left:4px; color:#2e7d32;">◀</span>' : ''}
+        </div>
+      `
     })
     parcelsHtml += '</div></div>'
   }
@@ -1093,7 +1156,6 @@ function buildFarmerPopupHtml(farmer, parcelIndex = 0, lat = 0, lng = 0) {
   const latVal = typeof lat === 'number' ? lat.toFixed(5) : lat
   const lngVal = typeof lng === 'number' ? lng.toFixed(5) : lng
   const addressHtml = farmer.address ? `<p style="margin:2px 0;font-size:12px;color:#444;"><strong>Address:</strong> ${escapeHtml(farmer.address)}</p>` : ''
-  const safeName = escapeHtml(farmer.name).replace(/'/g, "\\'")
 
   return `
     <div style="min-width:240px; font-family: inherit; font-size: 13px;">
@@ -1411,7 +1473,10 @@ function persistFarmers() {
         address: f.address && String(f.address).trim() ? String(f.address).trim() : null,
         location: resolveFarmerBarangay(f),
         commodity: f.commodity || 'Rice',
-        parcels
+        parcels,
+        gpxFileName: f.gpxFileName || null,
+        gpxFileNames: f.gpxFileNames || (f.gpxFileName ? [f.gpxFileName] : []),
+        updated_at: f.updated_at || new Date().toISOString()
       }
     })
     localStorage.setItem(STORAGE_KEY_FARMERS, JSON.stringify(toSave))
@@ -1461,6 +1526,72 @@ function jumpToCoordinates(customCoords = null) {
 
   clearJumpPin()
 
+  // Check if a parcel or GPX track already exists at this coordinate
+  let matchedFarmer = null
+  let matchedParcelIdx = -1
+  let matchedGpx = null
+
+  // 1. Check existing farmers and their parcels (threshold ~0.00015 deg, approx 15-20 meters)
+  for (const f of farmers.value) {
+    if (f.parcels && f.parcels.length > 0) {
+      const idx = f.parcels.findIndex(p => {
+        if (!p.coords) return false
+        const [pLat, pLng] = p.coords.split(',').map(Number)
+        return !isNaN(pLat) && !isNaN(pLng) && Math.abs(pLat - lat) < 0.0002 && Math.abs(pLng - lng) < 0.0002
+      })
+      if (idx >= 0) {
+        matchedFarmer = f
+        matchedParcelIdx = idx
+        break
+      }
+    } else if (f.coords) {
+      const [pLat, pLng] = f.coords.split(',').map(Number)
+      if (!isNaN(pLat) && !isNaN(pLng) && Math.abs(pLat - lat) < 0.0002 && Math.abs(pLng - lng) < 0.0002) {
+        matchedFarmer = f
+        matchedParcelIdx = 0
+        break
+      }
+    }
+  }
+
+  // 2. Check GPX tracks center or polygon proximity
+  if (!matchedFarmer) {
+    matchedGpx = uploadedFiles.value.find(track => {
+      if (track.center && Math.abs(track.center.lat - lat) < 0.0002 && Math.abs(track.center.lng - lng) < 0.0002) {
+        return true
+      }
+      return false
+    })
+  }
+
+  // If a parcel or track already exists on that exact coordinate, do not show custom pin
+  if (matchedFarmer) {
+    const targetName = (matchedFarmer.name || '').trim().toUpperCase()
+    const fm = farmerMarkers.find(m => 
+      (m.farmer === matchedFarmer || (m.farmer && m.farmer.name && m.farmer.name.toUpperCase() === targetName)) &&
+      m.parcelIndex === matchedParcelIdx
+    ) || farmerMarkers.find(m => 
+      m.farmer === matchedFarmer || (m.farmer && m.farmer.name && m.farmer.name.toUpperCase() === targetName)
+    )
+
+    map.flyTo([lat, lng], 17, { duration: 1.2 })
+    if (fm && fm.marker) {
+      setTimeout(() => {
+        if (fm.marker) fm.marker.openPopup()
+      }, 350)
+      fm.marker.openPopup()
+    }
+    const detectedBrgy = getBarangayFromCoordinates(lat, lng) || resolveFarmerBarangay(matchedFarmer)
+    setStatus(`Located parcel for ${matchedFarmer.name} (${detectedBrgy})`, 'success')
+    return
+  }
+
+  if (matchedGpx && matchedGpx.layer) {
+    flyToGPX(matchedGpx)
+    return
+  }
+
+  // No parcel or track found at this coordinate: Show Coordinate Location Custom Pin
   map.flyTo([lat, lng], 17, { duration: 1.2 })
 
   const icon = L.divIcon({
@@ -2727,7 +2858,8 @@ function saveFarmerEdit() {
       ...editingFarmer.value,
       name: (editingFarmer.value.name || '').trim().toUpperCase(),
       address: editingFarmer.value.address && editingFarmer.value.address.trim() ? editingFarmer.value.address.trim() : null,
-      location: (editingFarmer.value.location || '').trim().toUpperCase()
+      location: (editingFarmer.value.location || '').trim().toUpperCase(),
+      updated_at: new Date().toISOString()
     }
     if (updated.parcels && updated.parcels.length > 0) {
       updated.area = updated.parcels.reduce((sum, p) => sum + (Number(p.area) || 0), 0)
@@ -3403,6 +3535,9 @@ onMounted(async () => {
   window.editFarmerByPopup = (farmerName) => {
     openEditFarmerByName(farmerName)
   }
+  window.jumpToParcelByPopup = (farmerName, parcelIdx) => {
+    jumpToParcel(farmerName, parcelIdx)
+  }
   window.clearJumpPinByPopup = () => {
     clearJumpPin()
   }
@@ -3414,6 +3549,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   delete window.editFarmerByPopup
+  delete window.jumpToParcelByPopup
   delete window.clearJumpPinByPopup
   clearJumpPin()
   if (farmerLayerGroup) {
@@ -4690,6 +4826,11 @@ onBeforeUnmount(() => {
 
 :deep(.btn-popup-edit:hover) {
   background: var(--brand-700, #1b5e20) !important;
+}
+
+:deep(.popup-parcel-row:hover) {
+  background: #f0fdf4 !important;
+  color: #1b5e20 !important;
 }
 
 @media (max-width: 860px) {
