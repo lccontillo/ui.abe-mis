@@ -446,6 +446,10 @@
                 <DocumentExport20 class="btn-icon" />
                 <span>Export Farmers (JSON)</span>
               </button>
+              <button type="button" class="btn btn-secondary btn-sm btn-block" @click="exportDuplicateParcelsCSV">
+                <DocumentExport20 class="btn-icon" />
+                <span>Export Duplicate Parcels (CSV)</span>
+              </button>
               <button type="button" class="btn btn-secondary btn-sm btn-block" :disabled="uploadedFiles.length === 0" @click="exportGPX">
                 <Earth20 class="btn-icon" />
                 <span>Export All GPX Tracks ({{ uploadedFiles.length }})</span>
@@ -2130,8 +2134,16 @@ function findExactOrAreaDuplicate(fileName, tempPoints) {
     const existingName = String(existing.name || '').trim().toLowerCase()
     const coordsMatch = areTrackCoordinatesMatching(tempPoints, existing.points)
 
+    if (!coordsMatch) continue
+
+    const existingAreaHa = existing.areaHectares !== undefined
+      ? Number(existing.areaHectares)
+      : (existing.areaKm2 ? Number(existing.areaKm2) * 100 : 0)
+    const areaMatch = Math.abs(existingAreaHa - areaHectares) < 0.0001
+    const nameMatch = existingName === normalizedName
+
     // 1. Same filename and same exact coordinates
-    if (existingName === normalizedName && coordsMatch) {
+    if (nameMatch) {
       return {
         existing,
         reason: `already present with same filename and coordinates in "${existing.name}"`
@@ -2139,36 +2151,44 @@ function findExactOrAreaDuplicate(fileName, tempPoints) {
     }
 
     // 2. Same calculated area and coordinates present already (even if filenames are different)
-    const existingAreaHa = existing.areaHectares !== undefined
-      ? Number(existing.areaHectares)
-      : (existing.areaKm2 ? Number(existing.areaKm2) * 100 : 0)
-    const areaMatch = Math.abs(existingAreaHa - areaHectares) < 0.0001
-
-    if (coordsMatch && (areaMatch || existingName === normalizedName)) {
+    if (areaMatch) {
       return {
         existing,
         reason: `already present with matching coordinates and calculated area (${areaHectares.toFixed(4)} ha in "${existing.name}")`
       }
     }
 
-    if (coordsMatch) {
-      return {
-        existing,
-        reason: `identical coordinates already present in "${existing.name}"`
-      }
-    }
+    // If coordinates match but BOTH filename and area are different,
+    // automatically allow upload (not a duplicate)
   }
 
   return null
 }
 
-function checkDuplicateGPX(newPoints) {
+function checkDuplicateGPX(newPoints, newFileName = '') {
+  if (!newPoints || newPoints.length === 0) return null
   const newCenterLat = newPoints.reduce((s, p) => s + p[0], 0) / newPoints.length
   const newCenterLng = newPoints.reduce((s, p) => s + p[1], 0) / newPoints.length
   const newFirst = newPoints[0]
   const newLast = newPoints[newPoints.length - 1]
+  const normalizedNewName = String(newFileName || '').trim().toLowerCase()
+  const newAreaHa = calculatePolygonArea(newPoints) * 100
 
   for (const existing of uploadedFiles.value) {
+    const existingName = String(existing.name || '').trim().toLowerCase()
+    const existingAreaHa = existing.areaHectares !== undefined
+      ? Number(existing.areaHectares)
+      : (existing.areaKm2 ? Number(existing.areaKm2) * 100 : 0)
+
+    const isDifferentName = Boolean(normalizedNewName && existingName && normalizedNewName !== existingName)
+    const isDifferentArea = Math.abs(existingAreaHa - newAreaHa) >= 0.0001
+
+    // If coordinates match / are proximate, but filename is different AND area is different,
+    // automatically upload (do not treat as duplicate to block or prompt modal)
+    if (isDifferentName && isDifferentArea) {
+      continue
+    }
+
     const ec = existing.center
     const centerDist = haversineDistance(newCenterLat, newCenterLng, ec.lat, ec.lng)
     if (centerDist > 0.1) continue
@@ -2229,7 +2249,7 @@ async function processBatchFiles(files) {
       const tempPoints = extractTrackPoints(content)
 
       if (tempPoints.length > 0) {
-        // Automatic Skip: exact filename & coordinates match, OR matching area & coordinates even if filenames differ
+        // Automatic Skip: only if exact filename & coordinates match, OR matching area & coordinates
         const autoSkipMatch = findExactOrAreaDuplicate(file.name, tempPoints)
         if (autoSkipMatch) {
           prog.status = 'skipped'
@@ -2238,7 +2258,7 @@ async function processBatchFiles(files) {
           continue
         }
 
-        const duplicate = checkDuplicateGPX(tempPoints)
+        const duplicate = checkDuplicateGPX(tempPoints, file.name)
         if (duplicate) {
           warning(`Duplicate detected: "${file.name}" matches "${duplicate.name}"`)
           const proceed = await askDuplicateDecision(file.name, duplicate)
@@ -3079,6 +3099,12 @@ function autoRegisterFromGPX(fileName) {
       existingFarmer.parcels.push({ area: areaHa, coords })
       existingFarmer.area = existingFarmer.parcels.reduce((sum, p) => sum + (Number(p.area) || 0), 0)
       addFarmerMarker(existingFarmer, file.center.lat, file.center.lng, existingFarmer.parcels.length - 1)
+    } else {
+      const matchingParcel = existingFarmer.parcels.find(p => p.coords === coords)
+      if (matchingParcel && Math.abs(Number(matchingParcel.area || 0) - areaHa) >= 0.0001) {
+        matchingParcel.area = areaHa
+        existingFarmer.area = existingFarmer.parcels.reduce((sum, p) => sum + (Number(p.area) || 0), 0)
+      }
     }
     if (!existingFarmer.location || existingFarmer.location === 'ALCALA, CAGAYAN' || existingFarmer.location === 'Alcala') {
       if (detectedBrgy) existingFarmer.location = detectedBrgy
@@ -3680,6 +3706,161 @@ function exportFarmersJSON() {
   const json = JSON.stringify(farmers.value, null, 2)
   downloadFile(json, `farmers_alcala_${new Date().toISOString().slice(0, 10)}.json`, 'application/json')
   success('Exported farmers to JSON')
+}
+
+function exportDuplicateParcelsCSV() {
+  const esc = (val) => {
+    const s = val === null || val === undefined ? '' : String(val)
+    if (/[",\n\r]/.test(s)) return '"' + s.replace(/"/g, '""') + '"'
+    return s
+  }
+
+  // 1. Gather all parcel items from both uploadedFiles and registered farmers
+  const items = []
+
+  uploadedFiles.value.forEach(file => {
+    const fileArea = file.areaHectares !== undefined
+      ? Number(file.areaHectares)
+      : (file.areaKm2 ? Number(file.areaKm2) * 100 : (calculatePolygonArea(file.points || []) * 100))
+    const coords = file.center ? `${file.center.lat.toFixed(4)},${file.center.lng.toFixed(4)}` : ''
+    const farmerName = file.farmerName || deriveNameFromGPX(file.name)
+    const location = file.location || resolveGpxBarangay(file.name, file.center)
+
+    items.push({
+      source: 'GPX Track',
+      name: file.name,
+      farmerName,
+      location,
+      commodity: file.commodity || deriveCommodityFromGPX(file.name) || '',
+      area: fileArea,
+      coords,
+      points: file.points || [],
+      center: file.center
+    })
+  })
+
+  farmers.value.forEach(f => {
+    const parcels = f.parcels && f.parcels.length > 0 ? f.parcels : [{ area: f.area || 0, coords: f.coords || '' }]
+    parcels.forEach((p, pIdx) => {
+      const gpxName = (f.gpxFileNames && f.gpxFileNames[pIdx]) || f.gpxFileName || f.name || 'Unspecified GPX'
+      items.push({
+        source: 'Registered Farmer Parcel',
+        name: gpxName,
+        farmerName: f.name,
+        location: f.location || resolveFarmerBarangay(f),
+        commodity: f.commodity || '',
+        area: Number(p.area || 0),
+        coords: p.coords || '',
+        parcelIndex: pIdx + 1,
+        center: p.coords ? {
+          lat: Number(p.coords.split(',')[0]),
+          lng: Number(p.coords.split(',')[1])
+        } : null
+      })
+    })
+  })
+
+  // 2. Identify duplicates where coordinates match, but GPX filename AND area are different
+  const matchedPairs = []
+  const recordedKeys = new Set()
+
+  for (let i = 0; i < items.length; i++) {
+    for (let j = i + 1; j < items.length; j++) {
+      const a = items[i]
+      const b = items[j]
+
+      // Check if coordinates match
+      let coordsMatch = false
+      if (a.points && b.points && a.points.length > 0 && b.points.length > 0) {
+        coordsMatch = areTrackCoordinatesMatching(a.points, b.points)
+      }
+      if (!coordsMatch && a.coords && b.coords && a.coords === b.coords) {
+        coordsMatch = true
+      }
+      if (!coordsMatch && a.center && b.center && !isNaN(a.center.lat) && !isNaN(b.center.lat)) {
+        const dist = haversineDistance(a.center.lat, a.center.lng, b.center.lat, b.center.lng)
+        if (dist < 0.05) {
+          coordsMatch = true
+        }
+      }
+
+      if (!coordsMatch) continue
+
+      const nameA = String(a.name || '').trim().toLowerCase()
+      const nameB = String(b.name || '').trim().toLowerCase()
+      const diffFileName = nameA !== nameB
+
+      const areaA = Number(a.area || 0)
+      const areaB = Number(b.area || 0)
+      const diffArea = Math.abs(areaA - areaB) >= 0.0001
+
+      // Coordinates match BUT GPX filename and area are different
+      if (diffFileName && diffArea) {
+        const pairKey = `${a.name}|${b.name}|${a.coords || ''}|${b.coords || ''}`
+        if (!recordedKeys.has(pairKey)) {
+          recordedKeys.add(pairKey)
+          matchedPairs.push({ itemA: a, itemB: b, diffHa: Math.abs(areaA - areaB) })
+        }
+      }
+    }
+  }
+
+  if (matchedPairs.length === 0) {
+    info('No duplicate parcels found with matching coordinates and different GPX filenames/areas.')
+    return
+  }
+
+  const header = [
+    'Group ID',
+    'Item Type',
+    'Farmer Name',
+    'GPX File Name / Source',
+    'Barangay / Location',
+    'Commodity',
+    'Area (ha)',
+    'Coordinates',
+    'Matched With File',
+    'Matched Area (ha)',
+    'Area Difference (ha)'
+  ]
+
+  const rows = []
+  matchedPairs.forEach((pair, idx) => {
+    const groupId = `DUP-${idx + 1}`
+    const { itemA, itemB, diffHa } = pair
+
+    rows.push([
+      groupId,
+      itemA.source,
+      itemA.farmerName || '',
+      itemA.name || '',
+      itemA.location || '',
+      itemA.commodity || '',
+      (itemA.area != null ? Number(itemA.area).toFixed(4) : ''),
+      itemA.coords || '',
+      itemB.name || '',
+      (itemB.area != null ? Number(itemB.area).toFixed(4) : ''),
+      diffHa.toFixed(4)
+    ].map(esc))
+
+    rows.push([
+      groupId,
+      itemB.source,
+      itemB.farmerName || '',
+      itemB.name || '',
+      itemB.location || '',
+      itemB.commodity || '',
+      (itemB.area != null ? Number(itemB.area).toFixed(4) : ''),
+      itemB.coords || '',
+      itemA.name || '',
+      (itemA.area != null ? Number(itemA.area).toFixed(4) : ''),
+      diffHa.toFixed(4)
+    ].map(esc))
+  })
+
+  const csv = [header.map(esc).join(','), ...rows.map(r => r.join(','))].join('\r\n')
+  downloadFile('\uFEFF' + csv, `duplicate_parcels_diff_area_${new Date().toISOString().slice(0, 10)}.csv`, 'text/csv;charset=utf-8;')
+  success(`Exported ${matchedPairs.length} duplicate parcel group(s) to CSV`)
 }
 
 async function exportGPX() {
