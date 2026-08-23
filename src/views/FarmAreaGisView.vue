@@ -217,7 +217,10 @@
                   <span class="sub-section-title"><Document20 class="section-icon" /> Uploaded Files ({{ uploadedFiles.length }})</span>
                   <div class="bulk-btns">
                     <button type="button" class="btn btn-sm btn-secondary" @click="showAllFiles" title="Show all on map">
-                      <View20 class="btn-icon" /> All
+                      <View20 class="btn-icon" /> Show All
+                    </button>
+                    <button type="button" class="btn btn-sm btn-secondary" @click="hideAllFiles" title="Hide all from map">
+                      <ViewOff20 class="btn-icon" /> Hide All
                     </button>
   
                     <button type="button" class="btn btn-sm btn-danger" @click="removeAllFiles" title="Clear list">
@@ -487,6 +490,15 @@
           <button 
             type="button" 
             class="map-tool-btn" 
+            :class="{ active: parcelPolygonsVisible }" 
+            :title="parcelPolygonsVisible ? 'Hide Parcel Polygons' : 'Show Parcel Polygons'" 
+            @click="toggleParcelPolygons"
+          >
+            <AreaCustom20 />
+          </button>
+          <button 
+            type="button" 
+            class="map-tool-btn" 
             :class="{ active: farmerMarkersVisible }" 
             :title="farmerMarkersVisible ? 'Hide Farmer Pin Markers' : 'Show Farmer Pin Markers'" 
             @click="toggleFarmerMarkers"
@@ -512,6 +524,9 @@
           <span><Document20 class="item-inline-icon" /> {{ uploadedFiles.length }} GPX</span>
           <span v-if="boundaryVisible" class="boundary-indicator" title="Alcala Municipal Boundary Layer Loaded">
             <MapBoundary20 class="item-inline-icon" /> Boundary Active
+          </span>
+          <span v-if="!parcelPolygonsVisible" class="muted-indicator" title="Parcel Polygons are hidden">
+            Parcels: Hidden
           </span>
           <span v-if="!farmerMarkersVisible" class="muted-indicator" title="Farmer Pin Markers are hidden">
             Pins: Hidden
@@ -757,6 +772,7 @@ import {
   Home20,
   Reset20,
   MapBoundary20,
+  AreaCustom20,
   CheckmarkFilled20,
   ErrorFilled20,
   Time20,
@@ -944,6 +960,7 @@ const farmerLocationFilter = ref('All')
 const editingFarmer = ref(null)
 const editingIndex = ref(-1)
 
+const parcelPolygonsVisible = ref(false)
 const farmerMarkersVisible = ref(false)
 const gpxMarkersVisible = ref(false)
 
@@ -1236,7 +1253,8 @@ function initMap() {
   farmerLayerGroup = L.layerGroup()
   if (farmerMarkersVisible.value) farmerLayerGroup.addTo(map)
 
-  gpxTracksLayerGroup = L.layerGroup().addTo(map)
+  gpxTracksLayerGroup = L.layerGroup()
+  if (parcelPolygonsVisible.value) gpxTracksLayerGroup.addTo(map)
 
   gpxMarkersLayerGroup = L.layerGroup()
   if (gpxMarkersVisible.value) gpxMarkersLayerGroup.addTo(map)
@@ -1674,7 +1692,7 @@ async function loadSampleData() {
   })
 }
 
-function persistFarmers() {
+function persistFarmers(syncToServer = true) {
   try {
     const toSave = farmers.value.map(f => {
       const parcels = (f.parcels && f.parcels.length > 0)
@@ -1697,7 +1715,9 @@ function persistFarmers() {
       }
     })
     saveGisStorageData(STORAGE_KEY_FARMERS, toSave)
-    queueServerSync()
+    if (syncToServer) {
+      queueServerSync()
+    }
   } catch (e) {
     console.error('Error persisting farmers:', e)
   }
@@ -2549,13 +2569,14 @@ function clearAllGpxTrackLayers() {
   uploadedFiles.value = []
 }
 
-function renderGpxTracksData(tracksList) {
+function renderGpxTracksData(tracksList, syncToServer = false) {
   const activePopup = captureActivePopup()
   clearAllGpxTrackLayers()
   if (!Array.isArray(tracksList) || !map) return
   if (!gpxTracksLayerGroup && map) {
-    gpxTracksLayerGroup = L.layerGroup().addTo(map)
-  } else if (gpxTracksLayerGroup && map && !map.hasLayer(gpxTracksLayerGroup)) {
+    gpxTracksLayerGroup = L.layerGroup()
+    if (parcelPolygonsVisible.value) gpxTracksLayerGroup.addTo(map)
+  } else if (gpxTracksLayerGroup && map && !map.hasLayer(gpxTracksLayerGroup) && parcelPolygonsVisible.value) {
     gpxTracksLayerGroup.addTo(map)
   }
 
@@ -2616,11 +2637,11 @@ function renderGpxTracksData(tracksList) {
       endMarker: endMarker ? markRaw(endMarker) : null
     })
   })
-  persistGpxTracks()
+  persistGpxTracks(syncToServer)
   restoreActivePopup(activePopup)
 }
 
-function persistGpxTracks() {
+function persistGpxTracks(syncToServer = true) {
   try {
     const dataToSave = uploadedFiles.value.map(f => ({
       name: f.name,
@@ -2635,7 +2656,9 @@ function persistGpxTracks() {
       isEnclosed: f.isEnclosed
     }))
     saveGisStorageData(STORAGE_KEY_GPX_TRACKS, dataToSave)
-    queueServerSync()
+    if (syncToServer) {
+      queueServerSync()
+    }
   } catch (e) {
     console.error('Error persisting GPX tracks:', e)
   }
@@ -2691,12 +2714,12 @@ function parseGPX(fileName, gpxContent) {
     if (!gpxLayer) return null
 
     if (gpxTracksLayerGroup) {
-      if (map && !map.hasLayer(gpxTracksLayerGroup)) gpxTracksLayerGroup.addTo(map)
+      if (map && !map.hasLayer(gpxTracksLayerGroup) && parcelPolygonsVisible.value) gpxTracksLayerGroup.addTo(map)
       gpxTracksLayerGroup.addLayer(gpxLayer)
       if (gpxLayer.bringToFront) {
         try { gpxLayer.bringToFront() } catch (e) {}
       }
-    } else if (map) {
+    } else if (map && parcelPolygonsVisible.value) {
       gpxLayer.addTo(map)
     }
 
@@ -2856,8 +2879,11 @@ async function removeFile(index) {
 
 function showAllFiles() {
   if (!map) return
+  parcelPolygonsVisible.value = true
   if (!gpxTracksLayerGroup) {
     gpxTracksLayerGroup = L.layerGroup().addTo(map)
+  } else if (!map.hasLayer(gpxTracksLayerGroup)) {
+    gpxTracksLayerGroup.addTo(map)
   }
   uploadedFiles.value.forEach(f => {
     f.visible = true
@@ -3509,7 +3535,21 @@ function saveFarmerEdit() {
 }
 
 // Drawing & Measurements
-// Marker Layer Visibility Toggles
+// Layer Visibility Toggles
+function toggleParcelPolygons() {
+  parcelPolygonsVisible.value = !parcelPolygonsVisible.value
+  if (!map || !gpxTracksLayerGroup) return
+  if (parcelPolygonsVisible.value) {
+    if (!map.hasLayer(gpxTracksLayerGroup)) gpxTracksLayerGroup.addTo(map)
+    info('Parcel polygons visible')
+    setStatus('Parcel polygons shown', 'info')
+  } else {
+    if (map.hasLayer(gpxTracksLayerGroup)) map.removeLayer(gpxTracksLayerGroup)
+    info('Parcel polygons hidden (boosts map clarity & performance)')
+    setStatus('Parcel polygons hidden', 'info')
+  }
+}
+
 function toggleFarmerMarkers() {
   farmerMarkersVisible.value = !farmerMarkersVisible.value
   if (!map || !farmerLayerGroup) return
@@ -3967,7 +4007,7 @@ async function fetchGisDataFromServer(showNotification = false, isBackground = f
   if (syncStatus.value === 'syncing') return
   if (!isBackground && showNotification) {
     syncStatus.value = 'syncing'
-    syncStatusText.value = 'Syncing...'
+    syncStatusText.value = 'Pulling latest data from server...'
   }
   try {
     const token = localStorage.getItem('token')
@@ -3988,52 +4028,44 @@ async function fetchGisDataFromServer(showNotification = false, isBackground = f
 
       const hasServerFarmers = serverFarmers.length > 0
       const hasServerTracks = serverTracks.length > 0
-      const hasLocalFarmers = farmers.value && farmers.value.length > 0
-      const hasLocalTracks = uploadedFiles.value && uploadedFiles.value.length > 0
 
-      // If local has records, push local changes to server so they merge both ways
-      if (hasLocalFarmers || hasLocalTracks) {
-        await syncAllToServer(false, !showNotification, isBackground || !showNotification)
-      } else {
-        if (hasServerFarmers) {
-          renderFarmersData(serverFarmers)
-          await saveGisStorageData(STORAGE_KEY_FARMERS, serverFarmers)
-        }
+      // When pulling from server, always load and display server data
+      if (hasServerFarmers || hasServerTracks || (!hasServerFarmers && !hasServerTracks)) {
+        renderFarmersData(serverFarmers)
+        await saveGisStorageData(STORAGE_KEY_FARMERS, serverFarmers)
 
-        if (hasServerTracks) {
-          renderGpxTracksData(serverTracks)
-          const tracksToSave = uploadedFiles.value.map(f => ({
-            name: f.name,
-            farmerName: f.farmerName || null,
-            address: f.address || null,
-            location: f.location || null,
-            commodity: f.commodity || null,
-            points: f.points,
-            color: f.color,
-            center: f.center,
-            pointCount: f.pointCount,
-            visible: f.visible !== false,
-            areaKm2: f.areaKm2,
-            areaHectares: f.areaHectares,
-            areaMethod: f.areaMethod,
-            isEnclosed: f.isEnclosed
-          }))
-          await saveGisStorageData(STORAGE_KEY_GPX_TRACKS, tracksToSave)
-        }
+        renderGpxTracksData(serverTracks)
+        const tracksToSave = uploadedFiles.value.map(f => ({
+          name: f.name,
+          farmerName: f.farmerName || null,
+          address: f.address || null,
+          location: f.location || null,
+          commodity: f.commodity || null,
+          points: f.points,
+          color: f.color,
+          center: f.center,
+          pointCount: f.pointCount,
+          visible: f.visible !== false,
+          areaKm2: f.areaKm2,
+          areaHectares: f.areaHectares,
+          areaMethod: f.areaMethod,
+          isEnclosed: f.isEnclosed
+        }))
+        await saveGisStorageData(STORAGE_KEY_GPX_TRACKS, tracksToSave)
+      }
 
-        refreshAllMapPopups()
-        if (!isBackground && showNotification) {
-          syncStatus.value = 'synced'
-          syncStatusText.value = `In sync (${farmers.value.length} farmers, ${uploadedFiles.value.length} tracks)`
-        }
-        lastSyncTime.value = new Date().toLocaleTimeString()
-        if (showNotification) {
-          success(`Latest GIS data loaded (${farmers.value.length} farmers, ${uploadedFiles.value.length} tracks)`)
-        }
+      refreshAllMapPopups()
+      if (!isBackground) {
+        syncStatus.value = 'synced'
+        syncStatusText.value = `In sync (${farmers.value.length} farmers, ${uploadedFiles.value.length} tracks)`
+      }
+      lastSyncTime.value = new Date().toLocaleTimeString()
+      if (showNotification) {
+        success(`Latest GIS data loaded (${farmers.value.length} farmers, ${uploadedFiles.value.length} tracks)`)
       }
     }
   } catch (err) {
-    if (!isBackground && showNotification) {
+    if (!isBackground) {
       console.warn('Server GIS sync warning (using offline/local mode):', err)
       syncStatus.value = 'offline'
       syncStatusText.value = 'Local only (Offline)'
@@ -4107,7 +4139,7 @@ async function syncAllToServer(isInitialMigration = false, silent = false, isBac
         gpx_tracks: tracksToUpload,
         deleted_farmers: Array.from(deletedFarmerNames.value),
         deleted_gpx_tracks: Array.from(deletedGpxNames.value),
-        full_overwrite: true
+        full_overwrite: false
       })
     })
 
@@ -4118,16 +4150,12 @@ async function syncAllToServer(isInitialMigration = false, silent = false, isBac
       if (Array.isArray(result.farmers)) {
         const filteredFarmers = result.farmers.filter(f => !deletedFarmerNames.value.has((f.name || '').trim().toUpperCase()))
         await saveGisStorageData(STORAGE_KEY_FARMERS, filteredFarmers)
-        if (isInitialMigration) {
-          renderFarmersData(filteredFarmers)
-        }
+        renderFarmersData(filteredFarmers)
       }
       if (Array.isArray(result.gpx_tracks)) {
         const filteredTracks = result.gpx_tracks.filter(t => !deletedGpxNames.value.has((t.name || '').trim().toLowerCase()))
         await saveGisStorageData(STORAGE_KEY_GPX_TRACKS, filteredTracks)
-        if (isInitialMigration) {
-          renderGpxTracksData(filteredTracks)
-        }
+        renderGpxTracksData(filteredTracks)
       }
       refreshAllMapPopups()
 
