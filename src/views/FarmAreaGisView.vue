@@ -483,6 +483,17 @@
       <main class="gis-map-area">
         <div ref="mapContainer" class="map-canvas"></div>
 
+        <!-- Initial Data Loading Overlay -->
+        <Transition name="fade-loading">
+          <div v-if="isInitialLoading" class="map-loading-overlay">
+            <div class="loading-card">
+              <div class="loading-spinner-ring"></div>
+              <div class="loading-title">Preparing Farm Area GIS</div>
+              <div class="loading-detail">{{ loadingMessage }}</div>
+            </div>
+          </div>
+        </Transition>
+
         <!-- Floating Map Tool Controls -->
         <div class="map-floating-controls">
           <button type="button" class="map-tool-btn" title="Reset View to Alcala" @click="resetView">
@@ -979,7 +990,7 @@ const editingFarmer = ref(null)
 const editingIndex = ref(-1)
 
 const parcelPolygonsVisible = ref(false)
-const farmerMarkersVisible = ref(false)
+const farmerMarkersVisible = ref(true)
 const gpxMarkersVisible = ref(false)
 
 const boundaryVisible = ref(true)
@@ -992,6 +1003,9 @@ const currentLayer = ref('terrain')
 
 const statusMessage = ref('Ready')
 const statusType = ref('info')
+
+const isInitialLoading = ref(false)
+const loadingMessage = ref('')
 
 const ALCALA_CENTER = [17.9021, 121.6560]
 const STORAGE_KEY_FARMERS = 'farm_area_gis_farmers'
@@ -1263,27 +1277,10 @@ function initMap() {
   map = L.map(mapContainer.value, {
     center: ALCALA_CENTER,
     zoom: 13,
+    maxZoom: 19,
     zoomControl: true,
     attributionControl: true
   })
-
-  // Layer groups for clean multi-user sync and high-performance rendering
-  farmerLayerGroup = L.markerClusterGroup({
-    maxClusterRadius: 45,
-    spiderfyOnMaxZoom: true,
-    showCoverageOnHover: false,
-    chunkedLoading: true,
-    chunkInterval: 100,
-    chunkDelay: 25,
-    disableClusteringAtZoom: 17
-  })
-  if (farmerMarkersVisible.value) farmerLayerGroup.addTo(map)
-
-  gpxTracksLayerGroup = L.layerGroup()
-  if (parcelPolygonsVisible.value) gpxTracksLayerGroup.addTo(map)
-
-  gpxMarkersLayerGroup = L.layerGroup()
-  if (gpxMarkersVisible.value) gpxMarkersLayerGroup.addTo(map)
 
   const terrain = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '© OpenStreetMap contributors',
@@ -1311,6 +1308,24 @@ function initMap() {
   baseLayers.dark = dark
 
   terrain.addTo(map)
+
+  // Layer groups for clean multi-user sync and high-performance rendering
+  farmerLayerGroup = L.markerClusterGroup({
+    maxClusterRadius: 45,
+    spiderfyOnMaxZoom: true,
+    showCoverageOnHover: false,
+    chunkedLoading: true,
+    chunkInterval: 100,
+    chunkDelay: 25,
+    disableClusteringAtZoom: 17
+  })
+  if (farmerMarkersVisible.value) farmerLayerGroup.addTo(map)
+
+  gpxTracksLayerGroup = L.layerGroup()
+  if (parcelPolygonsVisible.value) gpxTracksLayerGroup.addTo(map)
+
+  gpxMarkersLayerGroup = L.layerGroup()
+  if (gpxMarkersVisible.value) gpxMarkersLayerGroup.addTo(map)
 
   // Initialize and display Alcala boundary layer as default layer
   initBoundaryLayer()
@@ -1672,25 +1687,37 @@ function clearAllFarmerMarkers() {
   farmerMarkers.length = 0
 }
 
-function renderFarmersData(farmersList) {
+async function renderFarmersData(farmersList) {
   const activePopup = captureActivePopup()
   clearAllFarmerMarkers()
-  farmers.value = Array.isArray(farmersList) ? farmersList : []
-  farmers.value.forEach(f => {
-    if (!f.parcels) {
-      f.parcels = []
-      if (f.coords && f.area) f.parcels.push({ area: Number(f.area), coords: String(f.coords) })
-    }
-    f.area = f.parcels.reduce((sum, p) => sum + (Number(p.area) || 0), 0)
-    f.parcels.forEach((p, idx) => {
-      if (p.coords) {
-        const [lat, lng] = p.coords.split(',').map(Number)
-        if (!isNaN(lat) && !isNaN(lng)) {
-          addFarmerMarker(f, lat, lng, idx)
-        }
+  const total = farmers.value.length
+  const CHUNK = 30
+  for (let i = 0; i < total; i += CHUNK) {
+    const end = Math.min(i + CHUNK, total)
+    for (let k = i; k < end; k++) {
+      const f = farmers.value[k]
+      if (!f.parcels) {
+        f.parcels = []
+        if (f.coords && f.area) f.parcels.push({ area: Number(f.area), coords: String(f.coords) })
       }
-    })
-  })
+      f.area = f.parcels.reduce((sum, p) => sum + (Number(p.area) || 0), 0)
+      f.parcels.forEach((p, idx) => {
+        if (p.coords) {
+          const [lat, lng] = p.coords.split(',').map(Number)
+          if (!isNaN(lat) && !isNaN(lng)) {
+            addFarmerMarker(f, lat, lng, idx)
+          }
+        }
+      })
+    }
+    // Yield to main thread between chunks so the browser stays responsive
+    if (i + CHUNK < total) {
+      if (isInitialLoading.value) {
+        loadingMessage.value = `Updating farmer records (${Math.min(i + CHUNK, total)} / ${total})...`
+      }
+      await new Promise(r => setTimeout(r, 0))
+    }
+  }
   restoreActivePopup(activePopup)
 }
 
@@ -1703,21 +1730,34 @@ async function loadSampleData() {
     farmers.value = []
   }
 
-  farmers.value.forEach(f => {
-    if (!f.parcels) {
-      f.parcels = []
-      if (f.coords && f.area) f.parcels.push({ area: Number(f.area), coords: String(f.coords) })
-    }
-    f.area = f.parcels.reduce((sum, p) => sum + (Number(p.area) || 0), 0)
-    f.parcels.forEach((p, idx) => {
-      if (p.coords) {
-        const [lat, lng] = p.coords.split(',').map(Number)
-        if (!isNaN(lat) && !isNaN(lng)) {
-          addFarmerMarker(f, lat, lng, idx)
-        }
+  const total = farmers.value.length
+  const CHUNK = 30
+  for (let i = 0; i < total; i += CHUNK) {
+    const end = Math.min(i + CHUNK, total)
+    for (let k = i; k < end; k++) {
+      const f = farmers.value[k]
+      if (!f.parcels) {
+        f.parcels = []
+        if (f.coords && f.area) f.parcels.push({ area: Number(f.area), coords: String(f.coords) })
       }
-    })
-  })
+      f.area = f.parcels.reduce((sum, p) => sum + (Number(p.area) || 0), 0)
+      f.parcels.forEach((p, idx) => {
+        if (p.coords) {
+          const [lat, lng] = p.coords.split(',').map(Number)
+          if (!isNaN(lat) && !isNaN(lng)) {
+            addFarmerMarker(f, lat, lng, idx)
+          }
+        }
+      })
+    }
+    // Yield to main thread between chunks so the browser stays responsive
+    if (i + CHUNK < total) {
+      if (isInitialLoading.value) {
+        loadingMessage.value = `Loading farmer records (${Math.min(i + CHUNK, total)} / ${total})...`
+      }
+      await new Promise(r => setTimeout(r, 0))
+    }
+  }
 }
 
 function persistFarmers(syncToServer = true) {
@@ -2594,7 +2634,9 @@ let gpxViewportDebounceTimer = null
 function getOrCreateGpxTrackLayer(track) {
   if (track.layer) return { gpxLayer: track.layer, startMarker: track.startMarker, endMarker: track.endMarker }
 
-  const normPoints = extractTrackPoints(track.points || track)
+  const normPoints = (Array.isArray(track.points) && track.points.length > 0 && Array.isArray(track.points[0]))
+    ? track.points
+    : extractTrackPoints(track.points || track)
   if (normPoints.length === 0) return { gpxLayer: null, startMarker: null, endMarker: null }
 
   const center = normalizeTrackCenter(track.center, normPoints)
@@ -2619,26 +2661,34 @@ function getOrCreateGpxTrackLayer(track) {
   return created
 }
 
+let gpxRenderSessionId = 0
+
 function updateVisibleGpxLayers() {
-  if (!map || !parcelPolygonsVisible.value) return
-  const bounds = map.getBounds().pad(0.35) // Viewport with 35% margin for smooth panning
+  if (!map || !parcelPolygonsVisible.value) {
+    gpxRenderSessionId++
+    return
+  }
+  
+  const currentZoomLevel = map.getZoom()
+  // When zoomed way out (e.g., zoom <= 12), use a tighter padding (0.1) so we don't load everything across the whole province
+  const padRatio = currentZoomLevel <= 12 ? 0.1 : 0.35
+  const bounds = map.getBounds().pad(padRatio)
 
   const tracks = uploadedFiles.value
   const len = tracks.length
   if (len === 0) return
 
-  // For small datasets (< 300 tracks), render all directly
-  const renderAll = len <= 300
+  // Strict viewport culling: only render what is in view or max limit per zoom to prevent DOM overload
+  const renderAll = len <= 100
+
+  const toAdd = []
+  const toRemove = []
 
   for (let i = 0; i < len; i++) {
     const track = tracks[i]
     if (!track || track.visible === false) {
       if (track.layer && gpxTracksLayerGroup && gpxTracksLayerGroup.hasLayer(track.layer)) {
-        gpxTracksLayerGroup.removeLayer(track.layer)
-      }
-      if (gpxMarkersLayerGroup) {
-        if (track.startMarker && gpxMarkersLayerGroup.hasLayer(track.startMarker)) gpxMarkersLayerGroup.removeLayer(track.startMarker)
-        if (track.endMarker && gpxMarkersLayerGroup.hasLayer(track.endMarker)) gpxMarkersLayerGroup.removeLayer(track.endMarker)
+        toRemove.push(track)
       }
       continue
     }
@@ -2647,6 +2697,37 @@ function updateVisibleGpxLayers() {
     const inView = renderAll || (c && bounds.contains([c.lat, c.lng]))
 
     if (inView) {
+      toAdd.push(track)
+    } else {
+      if (track.layer && gpxTracksLayerGroup && gpxTracksLayerGroup.hasLayer(track.layer)) {
+        toRemove.push(track)
+      }
+    }
+  }
+
+  // 1. Remove out-of-view tracks synchronously (cheap)
+  for (let i = 0; i < toRemove.length; i++) {
+    const track = toRemove[i]
+    if (track.layer && gpxTracksLayerGroup) {
+      gpxTracksLayerGroup.removeLayer(track.layer)
+    }
+    if (gpxMarkersLayerGroup) {
+      if (track.startMarker && gpxMarkersLayerGroup.hasLayer(track.startMarker)) gpxMarkersLayerGroup.removeLayer(track.startMarker)
+      if (track.endMarker && gpxMarkersLayerGroup.hasLayer(track.endMarker)) gpxMarkersLayerGroup.removeLayer(track.endMarker)
+    }
+  }
+
+  // 2. Add in-view tracks progressively in chunks of 30 per animation frame
+  const sessionId = ++gpxRenderSessionId
+  const BATCH_SIZE = 30
+  let idx = 0
+
+  function renderBatch() {
+    if (sessionId !== gpxRenderSessionId || !map || !parcelPolygonsVisible.value) return
+    const end = Math.min(idx + BATCH_SIZE, toAdd.length)
+
+    for (; idx < end; idx++) {
+      const track = toAdd[idx]
       if (!track.layer) {
         getOrCreateGpxTrackLayer(track)
       }
@@ -2657,17 +2738,14 @@ function updateVisibleGpxLayers() {
         if (track.startMarker && !gpxMarkersLayerGroup.hasLayer(track.startMarker)) gpxMarkersLayerGroup.addLayer(track.startMarker)
         if (track.endMarker && !gpxMarkersLayerGroup.hasLayer(track.endMarker)) gpxMarkersLayerGroup.addLayer(track.endMarker)
       }
-    } else {
-      // Out of view - remove Leaflet DOM layer to keep browser responsive
-      if (track.layer && gpxTracksLayerGroup && gpxTracksLayerGroup.hasLayer(track.layer)) {
-        gpxTracksLayerGroup.removeLayer(track.layer)
-      }
-      if (gpxMarkersLayerGroup) {
-        if (track.startMarker && gpxMarkersLayerGroup.hasLayer(track.startMarker)) gpxMarkersLayerGroup.removeLayer(track.startMarker)
-        if (track.endMarker && gpxMarkersLayerGroup.hasLayer(track.endMarker)) gpxMarkersLayerGroup.removeLayer(track.endMarker)
-      }
+    }
+
+    if (idx < toAdd.length) {
+      requestAnimationFrame(renderBatch)
     }
   }
+
+  renderBatch()
 }
 
 function queueGpxViewportUpdate() {
@@ -2694,7 +2772,7 @@ function clearAllGpxTrackLayers() {
   uploadedFiles.value = []
 }
 
-function renderGpxTracksData(tracksList, syncToServer = false) {
+async function renderGpxTracksData(tracksList, syncToServer = false) {
   const activePopup = captureActivePopup()
   clearAllGpxTrackLayers()
   if (!Array.isArray(tracksList) || !map) return
@@ -2714,33 +2792,48 @@ function renderGpxTracksData(tracksList, syncToServer = false) {
   const filteredList = tracksList.filter(t => t && !deletedGpxNames.value.has((t.name || '').trim().toLowerCase()))
 
   const newFiles = []
-  filteredList.forEach((track, idx) => {
-    if (!track) return
-    const normPoints = extractTrackPoints(track)
-    if (normPoints.length === 0) return
+  const CHUNK = 25
+  for (let i = 0; i < filteredList.length; i += CHUNK) {
+    const end = Math.min(i + CHUNK, filteredList.length)
+    for (let j = i; j < end; j++) {
+      const track = filteredList[j]
+      if (!track) continue
+      // Skip expensive re-extraction when points are already normalized [lat, lng] arrays
+      const normPoints = (Array.isArray(track.points) && track.points.length > 0 && Array.isArray(track.points[0]))
+        ? track.points
+        : extractTrackPoints(track)
+      if (normPoints.length === 0) continue
 
-    const trackColor = track.color || colors[idx % colors.length]
-    const center = normalizeTrackCenter(track.center, normPoints)
-    const isEnclosed = track.isEnclosed !== undefined ? Boolean(track.isEnclosed) : isTrackEnclosed(normPoints, 0.05)
-    const areaHa = Number(track.areaHectares || track.area_hectares || 0) || (calculatePolygonArea(normPoints) * 100)
-    const areaKm2 = Number(track.areaKm2 || track.area_km2 || 0) || (areaHa / 100)
+      const trackColor = track.color || colors[j % colors.length]
+      const center = normalizeTrackCenter(track.center, normPoints)
+      const isEnclosed = track.isEnclosed !== undefined ? Boolean(track.isEnclosed) : isTrackEnclosed(normPoints, 0.05)
+      const areaHa = Number(track.areaHectares || track.area_hectares || 0) || (calculatePolygonArea(normPoints) * 100)
+      const areaKm2 = Number(track.areaKm2 || track.area_km2 || 0) || (areaHa / 100)
 
-    newFiles.push({
-      ...track,
-      name: track.name || `Track ${idx + 1}`,
-      points: normPoints,
-      center,
-      color: trackColor,
-      areaHectares: areaHa,
-      areaKm2,
-      isEnclosed,
-      pointCount: normPoints.length,
-      visible: track.visible !== false,
-      layer: null,
-      startMarker: null,
-      endMarker: null
-    })
-  })
+      newFiles.push({
+        ...track,
+        name: track.name || `Track ${j + 1}`,
+        points: normPoints,
+        center,
+        color: trackColor,
+        areaHectares: areaHa,
+        areaKm2,
+        isEnclosed,
+        pointCount: normPoints.length,
+        visible: track.visible !== false,
+        layer: null,
+        startMarker: null,
+        endMarker: null
+      })
+    }
+    // Yield to main thread between chunks so the browser stays responsive
+    if (i + CHUNK < filteredList.length) {
+      if (isInitialLoading.value) {
+        loadingMessage.value = `Processing GPX tracks (${Math.min(i + CHUNK, filteredList.length)} / ${filteredList.length})...`
+      }
+      await new Promise(r => setTimeout(r, 0))
+    }
+  }
 
   uploadedFiles.value = newFiles
   updateVisibleGpxLayers()
@@ -2777,7 +2870,7 @@ async function loadSavedGpxTracks() {
     const saved = await loadGisStorageData(STORAGE_KEY_GPX_TRACKS)
     if (Array.isArray(saved) && saved.length > 0) {
       const activeSaved = saved.filter(t => !deletedGpxNames.value.has((t.name || '').trim().toLowerCase()))
-      renderGpxTracksData(activeSaved)
+      await renderGpxTracksData(activeSaved)
     }
   } catch (e) {
     console.error('Error loading saved GPX tracks:', e)
@@ -4154,15 +4247,21 @@ async function fetchGisDataFromServer(showNotification = false, isBackground = f
       const serverFarmers = rawServerFarmers.filter(f => !deletedFarmerNames.value.has((f.name || '').trim().toUpperCase()))
       const serverTracks = rawServerTracks.filter(t => !deletedGpxNames.value.has((t.name || '').trim().toLowerCase()))
 
-      const hasServerFarmers = serverFarmers.length > 0
-      const hasServerTracks = serverTracks.length > 0
+      // Quick fingerprint to skip re-render when server data matches local
+      const fp = list => {
+        if (!Array.isArray(list) || list.length === 0) return '0'
+        return `${list.length}:${(list[0].name || '')}:${(list[list.length - 1].name || '')}`
+      }
+      const farmersChanged = fp(serverFarmers) !== fp(farmers.value)
+      const tracksChanged = fp(serverTracks) !== fp(uploadedFiles.value)
 
-      // When pulling from server, always load and display server data
-      if (hasServerFarmers || hasServerTracks || (!hasServerFarmers && !hasServerTracks)) {
-        renderFarmersData(serverFarmers)
+      if (farmersChanged) {
+        await renderFarmersData(serverFarmers)
         await saveGisStorageData(STORAGE_KEY_FARMERS, serverFarmers)
+      }
 
-        renderGpxTracksData(serverTracks)
+      if (tracksChanged) {
+        await renderGpxTracksData(serverTracks)
         const tracksToSave = uploadedFiles.value.map(f => ({
           name: f.name,
           farmerName: f.farmerName || null,
@@ -4278,12 +4377,12 @@ async function syncAllToServer(isInitialMigration = false, silent = false, isBac
       if (Array.isArray(result.farmers)) {
         const filteredFarmers = result.farmers.filter(f => !deletedFarmerNames.value.has((f.name || '').trim().toUpperCase()))
         await saveGisStorageData(STORAGE_KEY_FARMERS, filteredFarmers)
-        renderFarmersData(filteredFarmers)
+        await renderFarmersData(filteredFarmers)
       }
       if (Array.isArray(result.gpx_tracks)) {
         const filteredTracks = result.gpx_tracks.filter(t => !deletedGpxNames.value.has((t.name || '').trim().toLowerCase()))
         await saveGisStorageData(STORAGE_KEY_GPX_TRACKS, filteredTracks)
-        renderGpxTracksData(filteredTracks)
+        await renderGpxTracksData(filteredTracks)
       }
       refreshAllMapPopups()
 
@@ -4320,11 +4419,33 @@ onMounted(async () => {
   window.clearJumpPinByPopup = () => {
     clearJumpPin()
   }
-  initMap()
-  await loadDeletedKeys()
-  await loadSampleData()
-  await loadSavedGpxTracks()
-  await fetchGisDataFromServer(false)
+  isInitialLoading.value = true
+  loadingMessage.value = 'Initializing map & workspace...'
+  syncStatus.value = 'syncing'
+  syncStatusText.value = 'Loading GIS Data...'
+
+  try {
+    initMap()
+    await loadDeletedKeys()
+
+    loadingMessage.value = 'Loading farmer records...'
+    await loadSampleData()
+
+    loadingMessage.value = 'Loading GPX tracks...'
+    await loadSavedGpxTracks()
+  } catch (err) {
+    console.error('Error during GIS onMounted initialization:', err)
+  } finally {
+    loadingMessage.value = 'Ready!'
+    isInitialLoading.value = false
+    if (syncStatus.value === 'syncing') {
+      syncStatus.value = 'idle'
+      syncStatusText.value = 'Cloud Sync Ready'
+    }
+  }
+
+  // Defer server fetch to background — don't block initial render
+  fetchGisDataFromServer(false).catch(err => console.warn('Background server sync:', err))
 })
 
 onBeforeUnmount(() => {
@@ -5706,6 +5827,73 @@ select.field-control-sm {
 :deep(.popup-parcel-row:hover) {
   background: #f0fdf4 !important;
   color: #1b5e20 !important;
+}
+
+/* Initial Map Loading Overlay */
+.map-loading-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: all;
+}
+
+.loading-card {
+  background: var(--bg-elevated, #ffffff);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: var(--radius-lg, 12px);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15), 0 10px 10px -5px rgba(0, 0, 0, 0.08);
+  padding: 1.75rem 2.25rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  min-width: 280px;
+  max-width: 380px;
+}
+
+.loading-spinner-ring {
+  width: 42px;
+  height: 42px;
+  border: 3.5px solid rgba(46, 125, 50, 0.18);
+  border-top-color: var(--brand-600, #2e7d32);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-bottom: 1rem;
+}
+
+.loading-title {
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: var(--heading, #0f172a);
+  margin-bottom: 0.35rem;
+}
+
+.loading-detail {
+  font-size: 0.82rem;
+  color: var(--text-muted, #64748b);
+  font-family: var(--font-mono, monospace);
+  min-height: 1.2rem;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.fade-loading-enter-active,
+.fade-loading-leave-active {
+  transition: opacity 0.25s ease;
+}
+
+.fade-loading-enter-from,
+.fade-loading-leave-to {
+  opacity: 0;
 }
 
 @media (max-width: 860px) {
