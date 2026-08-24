@@ -122,10 +122,15 @@
             </div>
 
             <!-- Search Results List -->
-            <div v-if="searchResults.length > 0" class="search-results-list">
+            <RecycleScroller
+              v-if="searchResults.length > 0"
+              class="search-results-list"
+              :items="searchResults"
+              :item-size="116"
+              key-field="_key"
+              v-slot="{ item: result, index }"
+            >
               <div
-                v-for="(result, index) in searchResults"
-                :key="(result.type || 'x') + '_' + index"
                 class="result-item-card"
                 :class="{ 'result-gpx-card': result.gpx }"
                 @click="flyToResult(result)"
@@ -155,7 +160,7 @@
                   </button>
                 </div>
               </div>
-            </div>
+            </RecycleScroller>
             <div v-else-if="searchQuery || searchLocationFilter !== 'All'" class="no-search-results">
               No matching farm areas found for "{{ searchQuery || searchLocationFilter }}".
             </div>
@@ -237,10 +242,15 @@
                   </div>
                 </div>
 
-                <div v-show="!uploadedFilesCollapsed" class="gpx-file-cards-list">
+                <RecycleScroller
+                  v-show="!uploadedFilesCollapsed"
+                  class="gpx-file-cards-list"
+                  :items="uploadedFiles"
+                  :item-size="96"
+                  key-field="name"
+                  v-slot="{ item: file, index }"
+                >
                   <div
-                    v-for="(file, index) in uploadedFiles"
-                    :key="index"
                     class="gpx-file-item"
                     :class="{ hidden: !file.visible }"
                   >
@@ -280,7 +290,7 @@
                       </div>
                     </div>
                   </div>
-                </div>
+                </RecycleScroller>
               </div>
             </div>
           </section>
@@ -355,12 +365,15 @@
               </select>
             </div>
 
-            <div class="farmers-list-container">
-              <div 
-                v-for="(farmer, index) in filteredFarmers" 
-                :key="farmer.name + index" 
-                class="farmer-card-item"
-              >
+            <RecycleScroller
+              v-if="filteredFarmers.length > 0"
+              class="farmers-list-container"
+              :items="filteredFarmers"
+              :item-size="118"
+              key-field="name"
+              v-slot="{ item: farmer, index }"
+            >
+              <div class="farmer-card-item">
                 <div class="farmer-card-header">
                   <strong class="farmer-title truncate">{{ farmer.name }}</strong>
                   <span class="badge badge-success">{{ fmt4(farmer.area) }} ha</span>
@@ -377,21 +390,21 @@
                   </span>
                 </div>
                 <div class="farmer-card-actions">
-                  <button type="button" class="btn btn-sm btn-primary" title="Fly to farmer" @click="locateFarmer(farmers.indexOf(farmer))">
+                  <button type="button" class="btn btn-sm btn-primary" title="Fly to farmer" @click="locateFarmer(farmer)">
                     <Location20 class="btn-icon" /> Locate
                   </button>
-                  <button type="button" class="btn btn-sm btn-secondary" title="Edit farmer parcels" @click="editFarmer(farmers.indexOf(farmer))">
+                  <button type="button" class="btn btn-sm btn-secondary" title="Edit farmer parcels" @click="editFarmer(farmer)">
                     <Edit20 class="btn-icon" /> Edit
                   </button>
-                  <button type="button" class="btn btn-sm btn-danger" title="Delete farmer" @click="removeFarmer(farmers.indexOf(farmer))">
+                  <button type="button" class="btn btn-sm btn-danger" title="Delete farmer" @click="removeFarmer(farmer)">
                     <TrashCan16 />
                   </button>
                 </div>
               </div>
+            </RecycleScroller>
 
-              <div v-if="filteredFarmers.length === 0" class="no-search-results">
-                {{ farmers.length === 0 ? 'No farmers registered yet.' : 'No farmers match the selected filters.' }}
-              </div>
+            <div v-else class="no-search-results">
+              {{ farmers.length === 0 ? 'No farmers registered yet.' : 'No farmers match the selected filters.' }}
             </div>
           </section>
 
@@ -783,6 +796,11 @@ import { useConfirmDialog } from '@/composables/useConfirmDialog'
 
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import 'leaflet.markercluster/dist/MarkerCluster.css'
+import 'leaflet.markercluster/dist/MarkerCluster.Default.css'
+import 'leaflet.markercluster'
+import { RecycleScroller } from 'vue-virtual-scroller'
+import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
 import { downloadZip } from 'client-zip'
 import proj4 from 'proj4'
 import alcalaBoundaryRaw from '@/assets/AlcalaBoundary.json'
@@ -1250,7 +1268,15 @@ function initMap() {
   })
 
   // Layer groups for clean multi-user sync and high-performance rendering
-  farmerLayerGroup = L.layerGroup()
+  farmerLayerGroup = L.markerClusterGroup({
+    maxClusterRadius: 45,
+    spiderfyOnMaxZoom: true,
+    showCoverageOnHover: false,
+    chunkedLoading: true,
+    chunkInterval: 100,
+    chunkDelay: 25,
+    disableClusteringAtZoom: 17
+  })
   if (farmerMarkersVisible.value) farmerLayerGroup.addTo(map)
 
   gpxTracksLayerGroup = L.layerGroup()
@@ -1299,6 +1325,7 @@ function initMap() {
 
   map.on('zoomend', () => {
     currentZoom.value = map.getZoom()
+    queueGpxViewportUpdate()
   })
 
   map.on('moveend', () => {
@@ -1306,6 +1333,7 @@ function initMap() {
     centerLat.value = c.lat
     centerLng.value = c.lng
     currentCoordinates.value = `${c.lat.toFixed(4)}°N, ${c.lng.toFixed(4)}°E`
+    queueGpxViewportUpdate()
   })
 }
 
@@ -1988,7 +2016,10 @@ function searchFarm() {
     })
   })
 
-  searchResults.value = Array.from(unifiedMap.values())
+  searchResults.value = Array.from(unifiedMap.values()).map((item, idx) => ({
+    ...item,
+    _key: `${item.type}_${item.name}_${idx}`
+  }))
   setStatus(
     `Found ${searchResults.value.length} unique farm area(s)${loc !== 'All' ? ` in ${loc}` : ''}`,
     searchResults.value.length > 0 ? 'success' : 'warning'
@@ -2066,6 +2097,11 @@ function flyToResult(result) {
 function flyToGPX(gpxFile) {
   if (!gpxFile || !map) return
   closeSearchInfo()
+
+  getOrCreateGpxTrackLayer(gpxFile)
+  if (gpxFile.layer && gpxTracksLayerGroup && !gpxTracksLayerGroup.hasLayer(gpxFile.layer) && parcelPolygonsVisible.value) {
+    gpxTracksLayerGroup.addLayer(gpxFile.layer)
+  }
 
   if (gpxFile.layer) {
     map.fitBounds(gpxFile.layer.getBounds(), { padding: [50, 50], maxZoom: 16 })
@@ -2552,6 +2588,95 @@ function createGpxPolygonLayer(points, color, fileName, areaHectares, areaKm2, i
   return { gpxLayer, startMarker, endMarker, polygonPoints: normPoints, safeCenter, haVal, km2Val, enclosed }
 }
 
+// Viewport-based GPX track rendering for 11,000+ tracks
+let gpxViewportDebounceTimer = null
+
+function getOrCreateGpxTrackLayer(track) {
+  if (track.layer) return { gpxLayer: track.layer, startMarker: track.startMarker, endMarker: track.endMarker }
+
+  const normPoints = extractTrackPoints(track.points || track)
+  if (normPoints.length === 0) return { gpxLayer: null, startMarker: null, endMarker: null }
+
+  const center = normalizeTrackCenter(track.center, normPoints)
+  const isEnclosed = track.isEnclosed !== undefined ? Boolean(track.isEnclosed) : isTrackEnclosed(normPoints, 0.05)
+  const areaHa = Number(track.areaHectares || track.area_hectares || 0) || (calculatePolygonArea(normPoints) * 100)
+  const areaKm2 = Number(track.areaKm2 || track.area_km2 || 0) || (areaHa / 100)
+
+  const created = createGpxPolygonLayer(
+    normPoints,
+    track.color || '#2196F3',
+    track.name,
+    areaHa,
+    areaKm2,
+    isEnclosed,
+    center.lat,
+    center.lng
+  )
+
+  track.layer = created.gpxLayer ? markRaw(created.gpxLayer) : null
+  track.startMarker = created.startMarker ? markRaw(created.startMarker) : null
+  track.endMarker = created.endMarker ? markRaw(created.endMarker) : null
+  return created
+}
+
+function updateVisibleGpxLayers() {
+  if (!map || !parcelPolygonsVisible.value) return
+  const bounds = map.getBounds().pad(0.35) // Viewport with 35% margin for smooth panning
+
+  const tracks = uploadedFiles.value
+  const len = tracks.length
+  if (len === 0) return
+
+  // For small datasets (< 300 tracks), render all directly
+  const renderAll = len <= 300
+
+  for (let i = 0; i < len; i++) {
+    const track = tracks[i]
+    if (!track || track.visible === false) {
+      if (track.layer && gpxTracksLayerGroup && gpxTracksLayerGroup.hasLayer(track.layer)) {
+        gpxTracksLayerGroup.removeLayer(track.layer)
+      }
+      if (gpxMarkersLayerGroup) {
+        if (track.startMarker && gpxMarkersLayerGroup.hasLayer(track.startMarker)) gpxMarkersLayerGroup.removeLayer(track.startMarker)
+        if (track.endMarker && gpxMarkersLayerGroup.hasLayer(track.endMarker)) gpxMarkersLayerGroup.removeLayer(track.endMarker)
+      }
+      continue
+    }
+
+    const c = track.center
+    const inView = renderAll || (c && bounds.contains([c.lat, c.lng]))
+
+    if (inView) {
+      if (!track.layer) {
+        getOrCreateGpxTrackLayer(track)
+      }
+      if (track.layer && gpxTracksLayerGroup && !gpxTracksLayerGroup.hasLayer(track.layer)) {
+        gpxTracksLayerGroup.addLayer(track.layer)
+      }
+      if (gpxMarkersVisible.value && gpxMarkersLayerGroup) {
+        if (track.startMarker && !gpxMarkersLayerGroup.hasLayer(track.startMarker)) gpxMarkersLayerGroup.addLayer(track.startMarker)
+        if (track.endMarker && !gpxMarkersLayerGroup.hasLayer(track.endMarker)) gpxMarkersLayerGroup.addLayer(track.endMarker)
+      }
+    } else {
+      // Out of view - remove Leaflet DOM layer to keep browser responsive
+      if (track.layer && gpxTracksLayerGroup && gpxTracksLayerGroup.hasLayer(track.layer)) {
+        gpxTracksLayerGroup.removeLayer(track.layer)
+      }
+      if (gpxMarkersLayerGroup) {
+        if (track.startMarker && gpxMarkersLayerGroup.hasLayer(track.startMarker)) gpxMarkersLayerGroup.removeLayer(track.startMarker)
+        if (track.endMarker && gpxMarkersLayerGroup.hasLayer(track.endMarker)) gpxMarkersLayerGroup.removeLayer(track.endMarker)
+      }
+    }
+  }
+}
+
+function queueGpxViewportUpdate() {
+  if (gpxViewportDebounceTimer) clearTimeout(gpxViewportDebounceTimer)
+  gpxViewportDebounceTimer = setTimeout(() => {
+    updateVisibleGpxLayers()
+  }, 120)
+}
+
 function clearAllGpxTrackLayers() {
   if (gpxTracksLayerGroup) {
     gpxTracksLayerGroup.clearLayers()
@@ -2588,6 +2713,7 @@ function renderGpxTracksData(tracksList, syncToServer = false) {
   const colors = ['#2196F3', '#4CAF50', '#FF9800', '#9C27B0', '#F44336', '#00BCD4', '#795548', '#607D8B']
   const filteredList = tracksList.filter(t => t && !deletedGpxNames.value.has((t.name || '').trim().toLowerCase()))
 
+  const newFiles = []
   filteredList.forEach((track, idx) => {
     if (!track) return
     const normPoints = extractTrackPoints(track)
@@ -2599,44 +2725,25 @@ function renderGpxTracksData(tracksList, syncToServer = false) {
     const areaHa = Number(track.areaHectares || track.area_hectares || 0) || (calculatePolygonArea(normPoints) * 100)
     const areaKm2 = Number(track.areaKm2 || track.area_km2 || 0) || (areaHa / 100)
 
-    const { gpxLayer, startMarker, endMarker, safeCenter, haVal, km2Val, enclosed } = createGpxPolygonLayer(
-      normPoints,
-      trackColor,
-      track.name || `Track ${idx + 1}`,
-      areaHa,
-      areaKm2,
-      isEnclosed,
-      center.lat,
-      center.lng
-    )
-
-    if (gpxTracksLayerGroup) {
-      gpxTracksLayerGroup.addLayer(gpxLayer)
-      if (gpxLayer.bringToFront) {
-        try { gpxLayer.bringToFront() } catch (e) {}
-      }
-    }
-    if (gpxMarkersLayerGroup) {
-      if (startMarker) gpxMarkersLayerGroup.addLayer(startMarker)
-      if (endMarker) gpxMarkersLayerGroup.addLayer(endMarker)
-    }
-
-    uploadedFiles.value.push({
+    newFiles.push({
       ...track,
       name: track.name || `Track ${idx + 1}`,
       points: normPoints,
-      center: safeCenter,
+      center,
       color: trackColor,
-      areaHectares: haVal,
-      areaKm2: km2Val,
-      isEnclosed: enclosed,
+      areaHectares: areaHa,
+      areaKm2,
+      isEnclosed,
       pointCount: normPoints.length,
-      visible: true,
-      layer: markRaw(gpxLayer),
-      startMarker: startMarker ? markRaw(startMarker) : null,
-      endMarker: endMarker ? markRaw(endMarker) : null
+      visible: track.visible !== false,
+      layer: null,
+      startMarker: null,
+      endMarker: null
     })
   })
+
+  uploadedFiles.value = newFiles
+  updateVisibleGpxLayers()
   persistGpxTracks(syncToServer)
   restoreActivePopup(activePopup)
 }
@@ -2823,18 +2930,20 @@ function convexHull(points) {
 }
 
 // File List Controls
-function toggleFileVisibility(index) {
-  const file = uploadedFiles.value[index]
+function toggleFileVisibility(target) {
+  const index = typeof target === 'number' ? target : uploadedFiles.value.indexOf(target)
+  const file = typeof target === 'object' && target ? target : (index >= 0 ? uploadedFiles.value[index] : null)
   if (!file) return
   file.visible = !file.visible
   if (!map) return
 
   if (file.visible) {
-    if (file.layer && gpxTracksLayerGroup && !gpxTracksLayerGroup.hasLayer(file.layer)) {
+    getOrCreateGpxTrackLayer(file)
+    if (file.layer && gpxTracksLayerGroup && !gpxTracksLayerGroup.hasLayer(file.layer) && parcelPolygonsVisible.value) {
       gpxTracksLayerGroup.addLayer(file.layer)
       if (file.layer.bringToFront) try { file.layer.bringToFront() } catch (e) {}
     }
-    if (gpxMarkersLayerGroup) {
+    if (gpxMarkersVisible.value && gpxMarkersLayerGroup) {
       if (file.startMarker && !gpxMarkersLayerGroup.hasLayer(file.startMarker)) gpxMarkersLayerGroup.addLayer(file.startMarker)
       if (file.endMarker && !gpxMarkersLayerGroup.hasLayer(file.endMarker)) gpxMarkersLayerGroup.addLayer(file.endMarker)
     }
@@ -2848,9 +2957,14 @@ function toggleFileVisibility(index) {
   persistGpxTracks()
 }
 
-function fitToFile(index) {
-  const file = uploadedFiles.value[index]
+function fitToFile(target) {
+  const index = typeof target === 'number' ? target : uploadedFiles.value.indexOf(target)
+  const file = typeof target === 'object' && target ? target : (index >= 0 ? uploadedFiles.value[index] : null)
   if (!file || !map) return
+  getOrCreateGpxTrackLayer(file)
+  if (file.layer && gpxTracksLayerGroup && !gpxTracksLayerGroup.hasLayer(file.layer) && parcelPolygonsVisible.value) {
+    gpxTracksLayerGroup.addLayer(file.layer)
+  }
   if (file.layer) {
     try {
       map.fitBounds(file.layer.getBounds(), { padding: [60, 60] })
@@ -2863,8 +2977,9 @@ function fitToFile(index) {
   }
 }
 
-async function removeFile(index) {
-  const file = uploadedFiles.value[index]
+async function removeFile(target) {
+  const index = typeof target === 'number' ? target : uploadedFiles.value.indexOf(target)
+  const file = typeof target === 'object' && target ? target : (index >= 0 ? uploadedFiles.value[index] : null)
   if (!file) return
   await markGpxDeleted(file.name)
   if (file.layer && gpxTracksLayerGroup) gpxTracksLayerGroup.removeLayer(file.layer)
@@ -2872,7 +2987,10 @@ async function removeFile(index) {
     if (file.startMarker) gpxMarkersLayerGroup.removeLayer(file.startMarker)
     if (file.endMarker) gpxMarkersLayerGroup.removeLayer(file.endMarker)
   }
-  uploadedFiles.value.splice(index, 1)
+  const realIdx = uploadedFiles.value.indexOf(file)
+  if (realIdx >= 0) {
+    uploadedFiles.value.splice(realIdx, 1)
+  }
   persistGpxTracks()
   info(`Removed ${file.name} from list and map`)
 }
@@ -2887,15 +3005,8 @@ function showAllFiles() {
   }
   uploadedFiles.value.forEach(f => {
     f.visible = true
-    if (f.layer && !gpxTracksLayerGroup.hasLayer(f.layer)) {
-      gpxTracksLayerGroup.addLayer(f.layer)
-      if (f.layer.bringToFront) try { f.layer.bringToFront() } catch (e) {}
-    }
-    if (gpxMarkersLayerGroup) {
-      if (f.startMarker && !gpxMarkersLayerGroup.hasLayer(f.startMarker)) gpxMarkersLayerGroup.addLayer(f.startMarker)
-      if (f.endMarker && !gpxMarkersLayerGroup.hasLayer(f.endMarker)) gpxMarkersLayerGroup.addLayer(f.endMarker)
-    }
   })
+  updateVisibleGpxLayers()
   persistGpxTracks()
   success('All GPX tracks visible')
 }
@@ -3246,8 +3357,12 @@ function isGpxTrackRelatedToFarmer(track, farmer) {
   return false
 }
 
-async function removeFarmer(index, skipConfirm = false) {
-  const farmer = farmers.value[index]
+async function removeFarmer(target, skipConfirm = false) {
+  let index = typeof target === 'number' ? target : farmers.value.indexOf(target)
+  if (index === -1 && typeof target === 'object' && target) {
+    index = farmers.value.findIndex(f => f.name && target.name && f.name.toUpperCase() === target.name.toUpperCase())
+  }
+  const farmer = index >= 0 ? farmers.value[index] : null
   if (!farmer) return false
   if (!skipConfirm) {
     const confirmed = await confirm('Delete Farmer', `Are you sure you want to delete "${farmer.name}" and remove any related GPX tracks?`, 'Delete')
@@ -3323,8 +3438,10 @@ async function removeFarmer(index, skipConfirm = false) {
   info(`Deleted farmer "${targetName}"${removedTracks.length > 0 ? ` and ${removedTracks.length} related GPX track(s)` : ''}`)
 }
 
-function locateFarmer(index) {
-  const farmer = farmers.value[index]
+function locateFarmer(target) {
+  const index = typeof target === 'number' ? target : farmers.value.indexOf(target)
+  const farmer = typeof target === 'object' && target ? target : (index >= 0 ? farmers.value[index] : null)
+  if (!farmer) return
   const firstParcel = farmer.parcels && farmer.parcels.length > 0 ? farmer.parcels[0] : null
   const coords = firstParcel && firstParcel.coords ? firstParcel.coords : farmer.coords
   if (coords && map) {
@@ -3336,9 +3453,16 @@ function locateFarmer(index) {
       const fm = farmerMarkers.find(m => m.farmer === farmer || (m.farmer.name && farmer.name && m.farmer.name.toUpperCase() === farmer.name.toUpperCase()))
       if (fm && fm.marker) {
         setTimeout(() => {
-          if (fm.marker) fm.marker.openPopup()
+          if (fm.marker) {
+            if (farmerLayerGroup && farmerLayerGroup.zoomToShowLayer) {
+              farmerLayerGroup.zoomToShowLayer(fm.marker, () => {
+                fm.marker.openPopup()
+              })
+            } else {
+              fm.marker.openPopup()
+            }
+          }
         }, 300)
-        fm.marker.openPopup()
       }
       return
     }
@@ -3346,8 +3470,10 @@ function locateFarmer(index) {
   warning(`No valid coordinates found for ${farmer.name}`)
 }
 
-function editFarmer(index) {
-  const farmer = farmers.value[index]
+function editFarmer(target) {
+  const index = typeof target === 'number' ? target : farmers.value.indexOf(target)
+  const farmer = typeof target === 'object' && target ? target : (index >= 0 ? farmers.value[index] : null)
+  if (!farmer) return
   const clone = { ...farmer }
   clone.address = clone.address || null
   clone.location = resolveFarmerBarangay(farmer)
@@ -3356,7 +3482,7 @@ function editFarmer(index) {
     clone.parcels.push({ area: clone.area || 0, coords: clone.coords || '' })
   }
   editingFarmer.value = clone
-  editingIndex.value = index
+  editingIndex.value = index >= 0 ? index : farmers.value.findIndex(f => f.name && farmer.name && f.name.toUpperCase() === farmer.name.toUpperCase())
 }
 
 function openEditFarmerByName(name) {
@@ -3541,6 +3667,7 @@ function toggleParcelPolygons() {
   if (!map || !gpxTracksLayerGroup) return
   if (parcelPolygonsVisible.value) {
     if (!map.hasLayer(gpxTracksLayerGroup)) gpxTracksLayerGroup.addTo(map)
+    updateVisibleGpxLayers()
     info('Parcel polygons visible')
     setStatus('Parcel polygons shown', 'info')
   } else {
@@ -3569,6 +3696,7 @@ function toggleGpxMarkers() {
   if (!map || !gpxMarkersLayerGroup) return
   if (gpxMarkersVisible.value) {
     if (!map.hasLayer(gpxMarkersLayerGroup)) gpxMarkersLayerGroup.addTo(map)
+    updateVisibleGpxLayers()
     info('GPX track endpoint markers visible')
     setStatus('GPX endpoint markers shown', 'info')
   } else {
@@ -4522,12 +4650,15 @@ onBeforeUnmount(() => {
 }
 
 .search-results-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.45rem;
-  margin-top: 0.65rem;
+  height: 260px;
   max-height: 260px;
   overflow-y: auto;
+  margin-top: 0.65rem;
+}
+
+.search-results-list .vue-recycle-scroller__item-view {
+  padding-bottom: 6px;
+  box-sizing: border-box;
 }
 
 .result-item-card {
@@ -4701,11 +4832,14 @@ onBeforeUnmount(() => {
 }
 
 .gpx-file-cards-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-  max-height: 220px;
+  height: 240px;
+  max-height: 240px;
   overflow-y: auto;
+}
+
+.gpx-file-cards-list .vue-recycle-scroller__item-view {
+  padding-bottom: 6px;
+  box-sizing: border-box;
 }
 
 .gpx-file-item {
@@ -4956,11 +5090,14 @@ select.field-control-sm {
 }
 
 .farmers-list-container {
-  display: flex;
-  flex-direction: column;
-  gap: 0.45rem;
-  max-height: 280px;
+  height: 320px;
+  max-height: 320px;
   overflow-y: auto;
+}
+
+.farmers-list-container .vue-recycle-scroller__item-view {
+  padding-bottom: 6px;
+  box-sizing: border-box;
 }
 
 .farmer-card-item {
