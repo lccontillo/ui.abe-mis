@@ -1690,6 +1690,7 @@ function clearAllFarmerMarkers() {
 async function renderFarmersData(farmersList) {
   const activePopup = captureActivePopup()
   clearAllFarmerMarkers()
+  farmers.value = Array.isArray(farmersList) ? farmersList : []
   const total = farmers.value.length
   const CHUNK = 30
   for (let i = 0; i < total; i += CHUNK) {
@@ -2669,16 +2670,16 @@ function updateVisibleGpxLayers() {
     return
   }
   
-  const currentZoomLevel = map.getZoom()
-  // When zoomed way out (e.g., zoom <= 12), use a tighter padding (0.1) so we don't load everything across the whole province
-  const padRatio = currentZoomLevel <= 12 ? 0.1 : 0.35
-  const bounds = map.getBounds().pad(padRatio)
+  const bounds = map.getBounds().pad(0.65) // Generous margin for smooth panning without edge clipping
+  const bSouth = bounds.getSouth()
+  const bNorth = bounds.getNorth()
+  const bWest = bounds.getWest()
+  const bEast = bounds.getEast()
 
   const tracks = uploadedFiles.value
   const len = tracks.length
   if (len === 0) return
 
-  // Strict viewport culling: only render what is in view or max limit per zoom to prevent DOM overload
   const renderAll = len <= 100
 
   const toAdd = []
@@ -2693,8 +2694,16 @@ function updateVisibleGpxLayers() {
       continue
     }
 
-    const c = track.center
-    const inView = renderAll || (c && bounds.contains([c.lat, c.lng]))
+    let inView = renderAll
+    if (!inView) {
+      if (track.bbox) {
+        // Bounding box overlap test with map bounds
+        const [minLat, minLng, maxLat, maxLng] = track.bbox
+        inView = !(maxLat < bSouth || minLat > bNorth || maxLng < bWest || minLng > bEast)
+      } else if (track.center) {
+        inView = bounds.contains([track.center.lat, track.center.lng])
+      }
+    }
 
     if (inView) {
       toAdd.push(track)
@@ -2810,11 +2819,22 @@ async function renderGpxTracksData(tracksList, syncToServer = false) {
       const areaHa = Number(track.areaHectares || track.area_hectares || 0) || (calculatePolygonArea(normPoints) * 100)
       const areaKm2 = Number(track.areaKm2 || track.area_km2 || 0) || (areaHa / 100)
 
+      let minLat = normPoints[0][0], maxLat = normPoints[0][0]
+      let minLng = normPoints[0][1], maxLng = normPoints[0][1]
+      for (let pIdx = 1; pIdx < normPoints.length; pIdx++) {
+        const p = normPoints[pIdx]
+        if (p[0] < minLat) minLat = p[0]
+        if (p[0] > maxLat) maxLat = p[0]
+        if (p[1] < minLng) minLng = p[1]
+        if (p[1] > maxLng) maxLng = p[1]
+      }
+
       newFiles.push({
         ...track,
         name: track.name || `Track ${j + 1}`,
         points: normPoints,
         center,
+        bbox: [minLat, minLng, maxLat, maxLng],
         color: trackColor,
         areaHectares: areaHa,
         areaKm2,
@@ -4225,10 +4245,16 @@ function queueServerSync() {
 }
 
 async function fetchGisDataFromServer(showNotification = false, isBackground = false) {
-  if (syncStatus.value === 'syncing') return
-  if (!isBackground && showNotification) {
+  if (syncStatus.value === 'syncing' && !isInitialLoading.value) return
+  
+  const hasLocalData = farmers.value.length > 0 || uploadedFiles.value.length > 0
+  if (!isBackground) {
     syncStatus.value = 'syncing'
     syncStatusText.value = 'Pulling latest data from server...'
+    if (!hasLocalData) {
+      isInitialLoading.value = true
+      loadingMessage.value = 'Connecting to server & downloading GIS data...'
+    }
   }
   try {
     const token = localStorage.getItem('token')
@@ -4256,11 +4282,17 @@ async function fetchGisDataFromServer(showNotification = false, isBackground = f
       const tracksChanged = fp(serverTracks) !== fp(uploadedFiles.value)
 
       if (farmersChanged) {
+        if (!hasLocalData && isInitialLoading.value) {
+          loadingMessage.value = `Loading ${serverFarmers.length} farmer records from server...`
+        }
         await renderFarmersData(serverFarmers)
         await saveGisStorageData(STORAGE_KEY_FARMERS, serverFarmers)
       }
 
       if (tracksChanged) {
+        if (!hasLocalData && isInitialLoading.value) {
+          loadingMessage.value = `Loading ${serverTracks.length} GPX tracks from server...`
+        }
         await renderGpxTracksData(serverTracks)
         const tracksToSave = uploadedFiles.value.map(f => ({
           name: f.name,
@@ -4299,6 +4331,10 @@ async function fetchGisDataFromServer(showNotification = false, isBackground = f
       if (showNotification) {
         info('Working in offline mode with local storage data')
       }
+    }
+  } finally {
+    if (!hasLocalData && isInitialLoading.value) {
+      isInitialLoading.value = false
     }
   }
 }
