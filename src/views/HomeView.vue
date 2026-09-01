@@ -103,6 +103,7 @@
 <script setup>
 import { reactive, ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { API_BASE } from '@/config/api'
 
 const fieldTypes = [
   'text',
@@ -126,7 +127,7 @@ const fetchDocument = async () => {
   loading.value = true
   const token = localStorage.getItem('token')
   const id = route.params.id
-  const res = await fetch(`https://api-abealcala.duckdns.org/document/${id}`, {
+  const res = await fetch(`${API_BASE}/document/${id}`, {
     headers: { Authorization: `Bearer ${token}` },
   })
   const data = await res.json()
@@ -184,7 +185,7 @@ const submitDocument = async () => {
   fd.append('schema', JSON.stringify(fields))
   // file upload not handled here, add if needed
 
-  await fetch(`https://api-abealcala.duckdns.org/document/${documentData.value.id}`, {
+  await fetch(`${API_BASE}/document/${documentData.value.id}`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
     body: fd,

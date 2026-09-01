@@ -162,6 +162,7 @@ import Modal from '@/components/Modal.vue'
 import FcaForm from './FcaForm.vue'
 import { Document20, Download20 } from '@carbon/icons-vue'
 import { useHashModal } from '@/composables/useHashModal'
+import { API_BASE } from '@/config/api'
 
 const token = localStorage.getItem('token')
 const route = useRoute()
@@ -194,7 +195,7 @@ function formatDate(dateStr) {
 
 async function fetchFca() {
   loading.value = true
-  const res = await fetch(`https://api-abealcala.duckdns.org/fca/${fcaId}`, {
+  const res = await fetch(`${API_BASE}/fca/${fcaId}`, {
     headers: { Authorization: `Bearer ${token}` },
   })
   Object.assign(fca, await res.json())
@@ -229,7 +230,7 @@ async function fetchDocuments() {
   params.append('page', page.value)
   params.append('limit', limit.value)
   console.log('Params:', params.toString())
-  const res = await fetch(`https://api-abealcala.duckdns.org/generated_documents?${params}`, {
+  const res = await fetch(`${API_BASE}/generated_documents?${params}`, {
     headers: { Authorization: `Bearer ${token}` },
   })
 

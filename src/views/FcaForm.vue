@@ -225,6 +225,7 @@ import CheckboxField from '@/components/CheckboxField.vue'
 import BreadcrumbNav from '@/components/BreadcrumbNav.vue'
 import TitleBar from '@/components/TitleBar.vue'
 import { useRouter } from 'vue-router'
+import { API_BASE } from '@/config/api'
 
 const router = useRouter()
 const saving = ref(false)
@@ -248,32 +249,28 @@ const form = reactive({
     brgy: '',
     street: '',
     municipality: '',
-    province: '',
-    zip_code: '',
-    major_commodity: [],
-    total_members: null,
-    business_operation: '',
-  },
-  organization: {
-    landline: '',
+    province: 'CAGAYAN',
+    status: '',
+    contact_number: '',
     email: '',
     website: '',
-    repository: '',
+    facebook_page: '',
+    latitude: '',
+    longitude: '',
+    major_commodity: '',
   },
-  officers: [
-    {
-      name: '',
-      position: '',
-      civil_status: '',
-      birth_date: '',
-      mobile_no: '',
-    },
-  ],
-  bods: [
-    {
-      name: '',
-    },
-  ],
+  organization: {
+    no_cluster: 0,
+    no_male_members: 0,
+    no_female_members: 0,
+    with_youth_members: 0,
+    with_ip_members: 0,
+    with_pwd_members: 0,
+    asset_size: '',
+    assets_owned: '',
+  },
+  officers: [],
+  bods: [],
 })
 
 watch(
@@ -363,11 +360,11 @@ async function submitForm() {
   saving.value = true
 
   try {
-    let url = 'https://api-abealcala.duckdns.org/add_fca'
+    let url = `${API_BASE}/add_fca`
     let method = 'POST'
 
     if (props.editMode && props.initialData?.general?.id) {
-      url = `https://api-abealcala.duckdns.org/update_fca/${props.initialData.general.id}`
+      url = `${API_BASE}/update_fca/${props.initialData.general.id}`
       method = 'PUT'
     }
 

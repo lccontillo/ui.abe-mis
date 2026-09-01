@@ -12,6 +12,7 @@ import { computePosition, autoUpdate, offset, flip, shift } from '@floating-ui/d
 import { downloadZip } from 'client-zip'
 import { useRoute } from 'vue-router'
 import { useHashModal } from '@/composables/useHashModal'
+import { API_BASE } from '@/config/api'
 const route = useRoute()
 
 const isViewMode = computed(() => route.query.document_id && route.query.fca && route.query.group)
@@ -44,10 +45,7 @@ const formData = reactive({})
 const doc_ids = ref([1, 2, 3, 4, 5])
 const { openHashModal, closeHashModal } = useHashModal({
   'fill-document': (isOpen) => {
-    if (!isOpen) {
-      showModal.value = false
-      selectedDocForModal.value = null
-    }
+    showModal.value = isOpen && Boolean(selectedDocForModal.value)
   },
 })
 
@@ -63,7 +61,7 @@ const groupDropdownRef = ref(null)
 
 // Fetch Data
 const fetchFcas = async () => {
-  const res = await fetch('https://api-abealcala.duckdns.org/fcas?limit=all', {
+  const res = await fetch(`${API_BASE}/fcas?limit=all`, {
     headers: { Authorization: `Bearer ${token}` },
   })
   const data = await res.json()
@@ -71,7 +69,7 @@ const fetchFcas = async () => {
 }
 
 const fetchGroups = async () => {
-  const res = await fetch('https://api-abealcala.duckdns.org/groups', {
+  const res = await fetch(`${API_BASE}/groups`, {
     headers: { Authorization: `Bearer ${token}` },
   })
   groups.value = await res.json()
@@ -82,7 +80,7 @@ const fetchDocuments = async () => {
   isLoading.value = true
   try {
     const res = await fetch(
-      `https://api-abealcala.duckdns.org/documents?group=${selectedGroup.value.id}&limit=all`,
+      `${API_BASE}/documents?group=${selectedGroup.value.id}&limit=all`,
       {
         headers: { Authorization: `Bearer ${token}` },
       },
@@ -171,7 +169,7 @@ async function openFormModal(doc) {
   // Fetch previous generation for this FCA and document only
   try {
     const res = await fetch(
-      `https://api-abealcala.duckdns.org/generations?fca_id=${selectedFca.value?.id}&document_id=${doc.id}`,
+      `${API_BASE}/generations?fca_id=${selectedFca.value?.id}&document_id=${doc.id}`,
       {
         headers: { Authorization: `Bearer ${token}` },
       },
@@ -217,7 +215,7 @@ async function submitForm() {
     return
   }
   try {
-    const res = await fetch('https://api-abealcala.duckdns.org/generate', {
+    const res = await fetch(`${API_BASE}/generate`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -279,7 +277,7 @@ async function downloadDocument(doc) {
   }
   try {
     console.log(selectedFca.value, doc)
-    const res = await fetch('https://api-abealcala.duckdns.org/download_document', {
+    const res = await fetch(`${API_BASE}/download_document`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -317,7 +315,7 @@ async function downloadAndZipDocuments(docIds) {
 
   for (const id of docIds) {
     try {
-      const res = await fetch('https://api-abealcala.duckdns.org/download_document', {
+      const res = await fetch(`${API_BASE}/download_document`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

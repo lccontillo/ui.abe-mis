@@ -63,6 +63,7 @@
 import { ref } from 'vue'
 import Modal from '@/components/Modal.vue'
 import { useHashModal } from '@/composables/useHashModal'
+import { API_BASE } from '@/config/api'
 
 const token = localStorage.getItem('token')
 const modals = ref({ password: false, email: false, name: false })
@@ -108,7 +109,7 @@ async function updatePassword() {
   }
   passwordMismatch.value = false
 
-  const res = await fetch('https://api-abealcala.duckdns.org/update_me', {
+  const res = await fetch(`${API_BASE}/update_me`, {
     method: 'PUT',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -123,7 +124,7 @@ async function updatePassword() {
 }
 
 async function updateEmail() {
-  const res = await fetch('https://api-abealcala.duckdns.org/update_me', {
+  const res = await fetch(`${API_BASE}/update_me`, {
     method: 'PUT',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -138,7 +139,7 @@ async function updateEmail() {
 }
 
 async function updateName() {
-  const res = await fetch('https://api-abealcala.duckdns.org/update_me', {
+  const res = await fetch(`${API_BASE}/update_me`, {
     method: 'PUT',
     headers: {
       Authorization: `Bearer ${token}`,

@@ -86,6 +86,7 @@ import PaginationBar from '@/components/PaginationBar.vue'
 import Modal from '@/components/Modal.vue'
 import { Earth20, View20, DocumentExport20, TrashCan20, Launch20 } from '@carbon/icons-vue'
 import { useHashModal } from '@/composables/useHashModal'
+import { API_BASE } from '@/config/api'
 
 const modals = ref({ gpxToShp: false, shpToGpx: false })
 const passwordForm = ref({ new: '', confirm: '' })
@@ -149,7 +150,7 @@ async function fetchConversions() {
   params.append('limit', pagination.value.limit)
 
   try {
-    const res = await fetch(`https://api-abealcala.duckdns.org/conversions?${params}`, {
+    const res = await fetch(`${API_BASE}/conversions?${params}`, {
       headers: {
         Authorization: `Bearer ${token}`, // make sure `token` is defined in your setup
       },
@@ -194,7 +195,7 @@ async function convertGPX() {
   formData.append('file', file)
 
   try {
-    const response = await fetch('https://api-abealcala.duckdns.org/gpx_to_shp', {
+    const response = await fetch(`${API_BASE}/gpx_to_shp`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
       body: formData,
@@ -244,7 +245,7 @@ async function convertSHP() {
   formData.append('file', file)
 
   try {
-    const response = await fetch('https://api-abealcala.duckdns.org/shp_to_gpx', {
+    const response = await fetch(`${API_BASE}/shp_to_gpx`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
       body: formData,

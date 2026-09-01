@@ -105,6 +105,7 @@ import DataTable from '@/components/DataTable.vue'
 import BreadcrumbNav from '@/components/BreadcrumbNav.vue'
 import PaginationBar from '@/components/PaginationBar.vue'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
+import { API_BASE } from '@/config/api'
 
 const token = localStorage.getItem('token')
 const router = useRouter()
@@ -174,7 +175,7 @@ async function deleteDocument(id) {
   if (!await confirm('Delete Document?', 'Are you sure you want to delete this document? This action cannot be undone.', 'Delete')) return
 
   try {
-    const res = await fetch(`https://api-abealcala.duckdns.org/generated_document/${id}`, {
+    const res = await fetch(`${API_BASE}/generated_document/${id}`, {
       method: 'DELETE',
       headers: {
         Authorization: `Bearer ${token}`,
@@ -206,7 +207,7 @@ async function fetchDocuments() {
   params.append('limit', limit.value)
 
   try {
-    const res = await fetch(`https://api-abealcala.duckdns.org/generated_documents?${params}`, {
+    const res = await fetch(`${API_BASE}/generated_documents?${params}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
     const data = await res.json()
@@ -221,7 +222,7 @@ async function fetchDocuments() {
 
 const fetchDocs = async () => {
   try {
-    const res = await fetch(`https://api-abealcala.duckdns.org/documents?limit=all`, {
+    const res = await fetch(`${API_BASE}/documents?limit=all`, {
       headers: { Authorization: `Bearer ${token}` },
     })
     const data = await res.json()
@@ -233,7 +234,7 @@ const fetchDocs = async () => {
 
 const fetchFcas = async () => {
   try {
-    const res = await fetch('https://api-abealcala.duckdns.org/fcas?limit=all', {
+    const res = await fetch(`${API_BASE}/fcas?limit=all`, {
       headers: { Authorization: `Bearer ${token}` },
     })
     const data = await res.json()
@@ -245,7 +246,7 @@ const fetchFcas = async () => {
 
 const fetchGroups = async () => {
   try {
-    const res = await fetch('https://api-abealcala.duckdns.org/groups', {
+    const res = await fetch(`${API_BASE}/groups`, {
       headers: { Authorization: `Bearer ${token}` },
     })
     const data = await res.json()
@@ -257,7 +258,7 @@ const fetchGroups = async () => {
 
 const fetchUsers = async () => {
   try {
-    const res = await fetch('https://api-abealcala.duckdns.org/users', {
+    const res = await fetch(`${API_BASE}/users`, {
       headers: { Authorization: `Bearer ${token}` },
     })
     const data = await res.json()

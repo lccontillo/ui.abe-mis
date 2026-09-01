@@ -181,6 +181,7 @@
 <script setup>
 import { reactive, ref, onMounted, nextTick, getCurrentInstance } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { API_BASE } from '@/config/api'
 const { proxy } = getCurrentInstance()
 const fieldTypes = [
   'text',
@@ -204,7 +205,7 @@ const fetchDocument = async () => {
   loading.value = true
   const token = localStorage.getItem('token')
   const id = route.params.id
-  const res = await fetch(`https://api-abealcala.duckdns.org/document/${id}`, {
+  const res = await fetch(`${API_BASE}/document/${id}`, {
     headers: { Authorization: `Bearer ${token}` },
   })
   const data = await res.json()
@@ -280,7 +281,7 @@ const submitDocument = async () => {
     // }
 
     const response = await fetch(
-      `https://api-abealcala.duckdns.org/document/${documentData.value.id}`,
+      `${API_BASE}/document/${documentData.value.id}`,
       {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },

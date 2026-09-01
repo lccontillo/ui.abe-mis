@@ -219,13 +219,15 @@
               <!-- Uploaded Files List -->
               <div v-if="uploadedFiles.length > 0" class="uploaded-files-block">
                 <div class="files-header-row">
-                  <span class="sub-section-title"><Document20 class="section-icon" /> Uploaded Files ({{ uploadedFiles.length }})</span>
+                  <span class="sub-section-title">
+                    <Document20 class="section-icon" /> Uploaded Files ({{ gpxSearchQuery ? filteredUploadedFiles.length + ' / ' + uploadedFiles.length : uploadedFiles.length }})
+                  </span>
                   <div class="bulk-btns">
                     <button type="button" class="btn btn-sm btn-secondary" @click="showAllFiles" title="Show all on map">
-                      <View20 class="btn-icon" /> Show All
+                      <View20 class="btn-icon" />
                     </button>
                     <button type="button" class="btn btn-sm btn-secondary" @click="hideAllFiles" title="Hide all from map">
-                      <ViewOff20 class="btn-icon" /> Hide All
+                      <ViewOff20 class="btn-icon" />
                     </button>
   
                     <button type="button" class="btn btn-sm btn-danger" @click="removeAllFiles" title="Clear list">
@@ -242,13 +244,35 @@
                   </div>
                 </div>
 
+                <!-- Filter Search Input for Uploaded Files -->
+                <div v-show="!uploadedFilesCollapsed" class="filter-row-sm" style="margin-bottom: 0.45rem;">
+                  <div class="search-input-wrapper">
+                    <input
+                      v-model="gpxSearchQuery"
+                      type="text"
+                      class="field-control-sm"
+                      placeholder="Filter uploaded GPX files by name, farmer, crop..."
+                    />
+                    <button
+                      v-if="gpxSearchQuery"
+                      type="button"
+                      class="btn-clear-inline"
+                      title="Clear filter"
+                      @click="gpxSearchQuery = ''"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+
                 <RecycleScroller
-                  v-show="!uploadedFilesCollapsed"
+                  v-show="!uploadedFilesCollapsed && filteredUploadedFiles.length > 0"
+                  :key="'gpx-scroller-' + gpxListRevision + '-' + filteredUploadedFiles.length + '-' + gpxSearchQuery"
                   class="gpx-file-cards-list"
-                  :items="uploadedFiles"
-                  :item-size="96"
+                  :items="filteredUploadedFiles"
+                  :item-size="118"
                   key-field="name"
-                  v-slot="{ item: file, index }"
+                  v-slot="{ item: file }"
                 >
                   <div
                     class="gpx-file-item"
@@ -272,25 +296,29 @@
                         {{ file.isEnclosed ? 'Enclosed Track' : 'Convex Hull' }}
                       </span>
                       <div class="btn-group-right">
-                        <button type="button" class="btn btn-sm btn-primary" title="Zoom to track" @click="fitToFile(index)">
+                        <button type="button" class="btn btn-sm btn-primary" title="Zoom to track" @click="fitToFile(file)">
                           <Location20 class="btn-icon" />
                         </button>
                         <button 
                           type="button" 
                           class="btn btn-sm btn-secondary" 
                           :title="file.visible ? 'Hide from map' : 'Show on map'" 
-                          @click="toggleFileVisibility(index)"
+                          @click="toggleFileVisibility(file)"
                         >
                           <View20 v-if="file.visible" class="btn-icon" />
                           <ViewOff20 v-else class="btn-icon" />
                         </button>
-                        <button type="button" class="btn btn-sm btn-danger" title="Remove from list" @click="removeFile(index)">
+                        <button type="button" class="btn btn-sm btn-danger" title="Remove from list" @click="removeFile(file)">
                           <TrashCan16 />
                         </button>
                       </div>
                     </div>
                   </div>
                 </RecycleScroller>
+
+                <div v-if="filteredUploadedFiles.length === 0 && !uploadedFilesCollapsed" class="no-search-results">
+                  No uploaded files match "{{ gpxSearchQuery }}".
+                </div>
               </div>
             </div>
           </section>
@@ -367,11 +395,12 @@
 
             <RecycleScroller
               v-if="filteredFarmers.length > 0"
+              :key="'farmers-scroller-' + farmersListRevision + '-' + filteredFarmers.length"
               class="farmers-list-container"
               :items="filteredFarmers"
-              :item-size="118"
+              :item-size="134"
               key-field="name"
-              v-slot="{ item: farmer, index }"
+              v-slot="{ item: farmer }"
             >
               <div class="farmer-card-item">
                 <div class="farmer-card-header">
@@ -429,7 +458,7 @@
                   class="btn btn-primary btn-sm" 
                   :disabled="syncStatus === 'syncing'" 
                   title="Upload all local GIS data to server"
-                  @click="syncAllToServer(false)"
+                  @click="uploadAllLocalToServer(true)"
                 >
                   <Upload20 class="btn-icon" />
                   <span>Upload to Server</span>
@@ -740,8 +769,18 @@
             <div class="parcels-editor-list">
               <div v-for="(parcel, pIdx) in editingFarmer.parcels" :key="pIdx" class="parcel-edit-item">
                 <div class="parcel-edit-head">
-                  <span>Parcel #{{ pIdx + 1 }}</span>
-                  <button type="button" class="btn-remove-parcel" title="Remove Parcel" @click="removeParcel(editingFarmer, pIdx)">
+                  <div style="display: flex; align-items: center; gap: 0.4rem; max-width: 80%;">
+                    <span>Parcel #{{ pIdx + 1 }}</span>
+                    <span 
+                      v-if="parcel.gpxFileName" 
+                      class="badge badge-success font-mono" 
+                      style="font-size: 10px; max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" 
+                      :title="'Associated track: ' + parcel.gpxFileName"
+                    >
+                      <Document20 class="item-inline-icon" /> {{ parcel.gpxFileName }}
+                    </span>
+                  </div>
+                  <button type="button" class="btn-remove-parcel" title="Delete this parcel and associated GPX track" @click="removeParcel(editingFarmer, pIdx)">
                     <TrashCan16 />
                   </button>
                 </div>
@@ -761,10 +800,11 @@
         </div>
 
         <div class="modal-footer">
-          <button type="button" class="btn btn-primary btn-sm" @click="saveFarmerEdit">
-            Save Changes
+          <button type="button" class="btn btn-primary btn-sm" :disabled="isSavingFarmer" @click="saveFarmerEdit">
+            <Time20 v-if="isSavingFarmer" class="btn-icon rotating-icon" />
+            <span>{{ isSavingFarmer ? 'Saving...' : 'Save Changes' }}</span>
           </button>
-          <button type="button" class="btn btn-secondary btn-sm" @click="editingFarmer = null">
+          <button type="button" class="btn btn-secondary btn-sm" :disabled="isSavingFarmer" @click="editingFarmer = null">
             Cancel
           </button>
         </div>
@@ -975,6 +1015,7 @@ const availableLocations = computed(() => {
 const isDragOver = ref(false)
 const gpxFileInput = ref(null)
 const uploadedFiles = ref([])
+const gpxSearchQuery = ref('')
 const uploadProgress = ref([])
 const pendingDuplicateFile = ref(null)
 
@@ -988,6 +1029,11 @@ const farmerLocationFilter = ref('All')
 
 const editingFarmer = ref(null)
 const editingIndex = ref(-1)
+const isSavingFarmer = ref(false)
+const isDeletingGpx = ref(false)
+const isDeletingFarmer = ref(false)
+const gpxListRevision = ref(0)
+const farmersListRevision = ref(0)
 
 const parcelPolygonsVisible = ref(false)
 const farmerMarkersVisible = ref(true)
@@ -1199,11 +1245,138 @@ async function unmarkGpxDeleted(name) {
   }
 }
 
-const API_BASE = import.meta.env.VITE_API_ENDPOINT || 'https://api-abealcala.duckdns.org'
+const API_BASE = import.meta.env.VITE_API_ENDPOINT || 'http://localhost:3000'
 const syncStatus = ref('idle') // 'idle' | 'syncing' | 'synced' | 'offline' | 'error'
-const syncStatusText = ref('Cloud Sync Ready')
+const syncStatusText = ref('Cloud Ready')
 const lastSyncTime = ref(null)
-let saveDebounceTimer = null
+
+// Server REST API CRUD helpers
+function getAuthHeaders(includeContentType = true) {
+  const token = localStorage.getItem('token')
+  return {
+    ...(includeContentType ? { 'Content-Type': 'application/json' } : {}),
+    ...(token ? { Authorization: `Bearer ${token}` } : {})
+  }
+}
+
+async function apiFetchAllGisData() {
+  const res = await fetch(`${API_BASE}/gis/all`, {
+    headers: getAuthHeaders(false)
+  })
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  return await res.json()
+}
+
+async function apiCreateFarmer(farmerData) {
+  try {
+    const res = await fetch(`${API_BASE}/gis/farmers`, {
+      method: 'POST',
+      headers: getAuthHeaders(true),
+      body: JSON.stringify(farmerData)
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const result = await res.json()
+    return result.data
+  } catch (err) {
+    console.warn('API create farmer error:', err)
+    return null
+  }
+}
+
+async function apiUpdateFarmer(idOrName, farmerData) {
+  try {
+    const target = encodeURIComponent(String(idOrName))
+    const res = await fetch(`${API_BASE}/gis/farmers/${target}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(true),
+      body: JSON.stringify(farmerData)
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const result = await res.json()
+    return result.data
+  } catch (err) {
+    console.warn('API update farmer error:', err)
+    return null
+  }
+}
+
+async function apiDeleteFarmer(idOrName) {
+  try {
+    const target = encodeURIComponent(String(idOrName))
+    const res = await fetch(`${API_BASE}/gis/farmers/${target}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(false)
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    return await res.json()
+  } catch (err) {
+    console.warn('API delete farmer error:', err)
+    return null
+  }
+}
+
+async function apiCreateGpxTracks(tracksData) {
+  try {
+    const res = await fetch(`${API_BASE}/gis/gpx_tracks`, {
+      method: 'POST',
+      headers: getAuthHeaders(true),
+      body: JSON.stringify(tracksData)
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const result = await res.json()
+    return result.data
+  } catch (err) {
+    console.warn('API create GPX tracks error:', err)
+    return null
+  }
+}
+
+async function apiUpdateGpxTrack(idOrName, trackData) {
+  try {
+    const target = encodeURIComponent(String(idOrName))
+    const res = await fetch(`${API_BASE}/gis/gpx_tracks/${target}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(true),
+      body: JSON.stringify(trackData)
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const result = await res.json()
+    return result.data
+  } catch (err) {
+    console.warn('API update GPX track error:', err)
+    return null
+  }
+}
+
+async function apiDeleteGpxTrack(idOrName) {
+  try {
+    const target = encodeURIComponent(String(idOrName))
+    const res = await fetch(`${API_BASE}/gis/gpx_tracks/${target}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(false)
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    return await res.json()
+  } catch (err) {
+    console.warn('API delete GPX track error:', err)
+    return null
+  }
+}
+
+async function apiClearAllGisData() {
+  try {
+    const res = await fetch(`${API_BASE}/gis/clear`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ clear_all: true })
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    return await res.json()
+  } catch (err) {
+    console.warn('API clear all GIS data error:', err)
+    return null
+  }
+}
 
 // Computed
 const filteredFarmers = computed(() => {
@@ -1251,6 +1424,27 @@ const filteredFarmers = computed(() => {
   }
 
   return list
+})
+
+const filteredUploadedFiles = computed(() => {
+  const q = gpxSearchQuery.value.trim().toLowerCase()
+  if (!q) return uploadedFiles.value
+  return uploadedFiles.value.filter(f => {
+    const name = (f.name || '').toLowerCase()
+    const farmerName = (f.farmerName || '').toLowerCase()
+    const derivedName = deriveNameFromGPX(f.name).toLowerCase()
+    const location = (f.location || '').toLowerCase()
+    const address = (f.address || '').toLowerCase()
+    const commodity = (f.commodity || '').toLowerCase()
+    const coords = f.center ? `${f.center.lat.toFixed(4)}, ${f.center.lng.toFixed(4)}` : ''
+    return name.includes(q) ||
+           farmerName.includes(q) ||
+           derivedName.includes(q) ||
+           location.includes(q) ||
+           address.includes(q) ||
+           commodity.includes(q) ||
+           coords.includes(q)
+  })
 })
 
 const layerIcon = computed(() => {
@@ -1761,32 +1955,33 @@ async function loadSampleData() {
   }
 }
 
-function persistFarmers(syncToServer = true) {
+async function persistFarmers() {
   try {
     const toSave = farmers.value.map(f => {
       const parcels = (f.parcels && f.parcels.length > 0)
         ? f.parcels.map(p => ({
+            id: p.id,
             area: Number(Number(p.area || 0).toFixed(4)),
-            coords: String(p.coords || '').trim()
+            coords: String(p.coords || '').trim(),
+            gpxFileName: p.gpxFileName || null
           }))
         : (f.coords && f.area
-            ? [{ area: Number(Number(f.area).toFixed(4)), coords: String(f.coords).trim() }]
+            ? [{ area: Number(Number(f.area).toFixed(4)), coords: String(f.coords).trim(), gpxFileName: f.gpxFileName || null }]
             : [])
       return {
+        id: f.id,
         name: (f.name || '').trim().toUpperCase(),
         address: f.address && String(f.address).trim() ? String(f.address).trim() : null,
         location: resolveFarmerBarangay(f),
         commodity: f.commodity || 'Rice',
+        area: f.area !== undefined ? Number(f.area) : 0,
         parcels,
         gpxFileName: f.gpxFileName || null,
         gpxFileNames: f.gpxFileNames || (f.gpxFileName ? [f.gpxFileName] : []),
         updated_at: f.updated_at || new Date().toISOString()
       }
     })
-    saveGisStorageData(STORAGE_KEY_FARMERS, toSave)
-    if (syncToServer) {
-      queueServerSync()
-    }
+    await saveGisStorageData(STORAGE_KEY_FARMERS, toSave)
   } catch (e) {
     console.error('Error persisting farmers:', e)
   }
@@ -2334,6 +2529,8 @@ async function processBatchFiles(files) {
     percent: 0
   }))
 
+  const initialTrackCount = uploadedFiles.value.length
+
   for (let i = 0; i < files.length; i++) {
     const file = files[i]
     const prog = uploadProgress.value[i]
@@ -2391,6 +2588,22 @@ async function processBatchFiles(files) {
   const successCount = uploadProgress.value.filter(p => p.status === 'done').length
   const skipCount = uploadProgress.value.filter(p => p.status === 'skipped').length
   success(`Batch upload completed: ${successCount} imported, ${skipCount} skipped (${files.length} total)`)
+
+  // Save new tracks to server SQLite database
+  const newTracks = uploadedFiles.value.slice(initialTrackCount)
+  if (newTracks.length > 0) {
+    persistGpxTracks()
+    apiCreateGpxTracks(newTracks).then(savedTracks => {
+      if (Array.isArray(savedTracks)) {
+        savedTracks.forEach(saved => {
+          const localTrack = uploadedFiles.value.find(t => t.name === saved.name)
+          if (localTrack && saved.id) localTrack.id = saved.id
+        })
+        persistGpxTracks()
+      }
+    }).catch(err => console.warn('Server batch GPX save warning:', err))
+  }
+
   setTimeout(() => {
     if (!pendingDuplicateFile.value) uploadProgress.value = []
   }, 4000)
@@ -2857,14 +3070,20 @@ async function renderGpxTracksData(tracksList, syncToServer = false) {
 
   uploadedFiles.value = newFiles
   updateVisibleGpxLayers()
-  persistGpxTracks(syncToServer)
+  persistGpxTracks()
   restoreActivePopup(activePopup)
 }
 
-function persistGpxTracks(syncToServer = true) {
+async function persistGpxTracks() {
   try {
     const dataToSave = uploadedFiles.value.map(f => ({
+      id: f.id,
       name: f.name,
+      farmerId: f.farmerId || null,
+      farmerName: f.farmerName || null,
+      address: f.address || null,
+      location: f.location || null,
+      commodity: f.commodity || null,
       points: f.points,
       color: f.color,
       center: f.center,
@@ -2873,12 +3092,10 @@ function persistGpxTracks(syncToServer = true) {
       areaKm2: f.areaKm2,
       areaHectares: f.areaHectares,
       areaMethod: f.areaMethod,
-      isEnclosed: f.isEnclosed
+      isEnclosed: f.isEnclosed,
+      updated_at: f.updated_at || new Date().toISOString()
     }))
-    saveGisStorageData(STORAGE_KEY_GPX_TRACKS, dataToSave)
-    if (syncToServer) {
-      queueServerSync()
-    }
+    await saveGisStorageData(STORAGE_KEY_GPX_TRACKS, dataToSave)
   } catch (e) {
     console.error('Error persisting GPX tracks:', e)
   }
@@ -3081,31 +3298,235 @@ function fitToFile(target) {
   if (file.layer) {
     try {
       map.fitBounds(file.layer.getBounds(), { padding: [60, 60] })
-      if (file.center) {
-        file.layer.openPopup([file.center.lat, file.center.lng])
-      }
     } catch (e) {}
   } else if (file.center) {
     map.flyTo([file.center.lat, file.center.lng], 16)
   }
+
+  // Find associated farmer marker and open its popup
+  const relatedFarmer = farmers.value.find(f => isGpxTrackRelatedToFarmer(file, f))
+  let targetMarker = null
+
+  if (relatedFarmer) {
+    // If multiple parcels, find the marker closest to file.center
+    if (file.center) {
+      const candidates = farmerMarkers.filter(m => m.farmer === relatedFarmer || (m.farmer && m.farmer.name && relatedFarmer.name && m.farmer.name.toUpperCase() === relatedFarmer.name.toUpperCase()))
+      if (candidates.length > 0) {
+        let bestDist = Infinity
+        for (const c of candidates) {
+          if (c.marker) {
+            const pos = c.marker.getLatLng()
+            const dist = Math.abs(pos.lat - file.center.lat) + Math.abs(pos.lng - file.center.lng)
+            if (dist < bestDist) {
+              bestDist = dist
+              targetMarker = c.marker
+            }
+          }
+        }
+      }
+    }
+    if (!targetMarker) {
+      const fm = farmerMarkers.find(m => m.farmer === relatedFarmer || (m.farmer && m.farmer.name && relatedFarmer.name && m.farmer.name.toUpperCase() === relatedFarmer.name.toUpperCase()))
+      if (fm) targetMarker = fm.marker
+    }
+  }
+
+  // If no farmer found by metadata, try matching farmer marker by proximity to track center
+  if (!targetMarker && file.center) {
+    let bestDist = 0.005 // within ~500m
+    for (const fm of farmerMarkers) {
+      if (fm.marker) {
+        const pos = fm.marker.getLatLng()
+        const dist = Math.abs(pos.lat - file.center.lat) + Math.abs(pos.lng - file.center.lng)
+        if (dist < bestDist) {
+          bestDist = dist
+          targetMarker = fm.marker
+        }
+      }
+    }
+  }
+
+  if (targetMarker) {
+    setTimeout(() => {
+      if (targetMarker) {
+        if (farmerLayerGroup && farmerLayerGroup.zoomToShowLayer) {
+          farmerLayerGroup.zoomToShowLayer(targetMarker, () => {
+            targetMarker.openPopup()
+          })
+        } else {
+          targetMarker.openPopup()
+        }
+      }
+    }, 350)
+  } else if (file.layer && file.center) {
+    setTimeout(() => {
+      try {
+        file.layer.openPopup([file.center.lat, file.center.lng])
+      } catch (_) {}
+    }, 350)
+  }
 }
 
-async function removeFile(target) {
-  const index = typeof target === 'number' ? target : uploadedFiles.value.indexOf(target)
-  const file = typeof target === 'object' && target ? target : (index >= 0 ? uploadedFiles.value[index] : null)
+async function removeFile(target, skipConfirm = false) {
+  const file = (typeof target === 'object' && target) 
+    ? target 
+    : (typeof target === 'number' && target >= 0 ? uploadedFiles.value[target] : uploadedFiles.value.find(f => f.name === target || (f.id && f.id === target)))
   if (!file) return
-  await markGpxDeleted(file.name)
-  if (file.layer && gpxTracksLayerGroup) gpxTracksLayerGroup.removeLayer(file.layer)
-  if (gpxMarkersLayerGroup) {
-    if (file.startMarker) gpxMarkersLayerGroup.removeLayer(file.startMarker)
-    if (file.endMarker) gpxMarkersLayerGroup.removeLayer(file.endMarker)
+
+  if (!skipConfirm) {
+    const confirmed = await confirm(
+      'Delete GPX Track',
+      `Are you sure you want to delete "${file.name}"? If associated with a farmer profile, the corresponding parcel will also be removed.`,
+      'Delete Track'
+    )
+    if (!confirmed) return
   }
-  const realIdx = uploadedFiles.value.indexOf(file)
-  if (realIdx >= 0) {
-    uploadedFiles.value.splice(realIdx, 1)
+
+  isDeletingGpx.value = true
+  syncStatus.value = 'syncing'
+  syncStatusText.value = `Deleting "${file.name}"...`
+
+  try {
+    const fileName = file.name
+    const fileCenterLat = file.center ? file.center.lat : null
+    const fileCenterLng = file.center ? file.center.lng : null
+
+    // 1. Mark as deleted in IndexedDB deleted set
+    await markGpxDeleted(fileName)
+
+    // 2. Remove GPX layers from Leaflet map
+    if (file.layer && gpxTracksLayerGroup) {
+      try { gpxTracksLayerGroup.removeLayer(file.layer) } catch (_) {}
+    }
+    if (gpxMarkersLayerGroup) {
+      if (file.startMarker) try { gpxMarkersLayerGroup.removeLayer(file.startMarker) } catch (_) {}
+      if (file.endMarker) try { gpxMarkersLayerGroup.removeLayer(file.endMarker) } catch (_) {}
+    }
+
+    // 3. Remove immediately from reactive in-memory list
+    const fileIndex = uploadedFiles.value.findIndex(f => f === file || f.name === fileName || (file.id && f.id === file.id))
+    if (fileIndex >= 0) {
+      uploadedFiles.value.splice(fileIndex, 1)
+    } else {
+      uploadedFiles.value = uploadedFiles.value.filter(f => f !== file && f.name !== fileName)
+    }
+
+    // Force virtual scroller to immediately refresh visible items without needing manual scroll
+    gpxListRevision.value++
+
+    // 4. Save updated GPX tracks directly to IndexedDB
+    await persistGpxTracks()
+
+    // 5. Unlink and remove/update associated farmer and farmer markers
+    let farmersModified = false
+    const farmersToDelete = []
+    const farmersToUpdate = []
+
+    for (let i = farmers.value.length - 1; i >= 0; i--) {
+      const farmer = farmers.value[i]
+      if (isGpxTrackRelatedToFarmer(file, farmer)) {
+        farmersModified = true
+
+        // Remove track filename from farmer metadata
+        if (Array.isArray(farmer.gpxFileNames)) {
+          farmer.gpxFileNames = farmer.gpxFileNames.filter(fn => fn !== fileName)
+        }
+        if (farmer.gpxFileName === fileName) {
+          farmer.gpxFileName = (farmer.gpxFileNames && farmer.gpxFileNames.length > 0) ? farmer.gpxFileNames[0] : null
+        }
+
+        // Remove ONLY the single exact parcel for this specific GPX file
+        if (Array.isArray(farmer.parcels) && farmer.parcels.length > 0) {
+          let matchingParcelIdx = -1
+
+          // 1. Match by explicit parcel.gpxFileName
+          matchingParcelIdx = farmer.parcels.findIndex(p => p.gpxFileName === fileName)
+
+          // 2. Direct score matching between this parcel and the deleted file object
+          if (matchingParcelIdx === -1) {
+            let lowestScore = Infinity
+            farmer.parcels.forEach((p, pIdx) => {
+              let score = 0
+              if (p.coords && file.center) {
+                const [pLat, pLng] = p.coords.split(',').map(Number)
+                if (!isNaN(pLat) && !isNaN(pLng)) {
+                  score += Math.hypot(pLat - file.center.lat, pLng - file.center.lng) * 1000
+                }
+              }
+              const pArea = Number(p.area || 0)
+              if (pArea > 0 && file.areaHectares > 0) {
+                score += Math.abs(file.areaHectares - pArea) * 10
+              }
+              if (score < lowestScore) {
+                lowestScore = score
+                matchingParcelIdx = pIdx
+              }
+            })
+          }
+
+          // 3. Fallback for single parcel
+          if (matchingParcelIdx === -1 && farmer.parcels.length === 1) {
+            matchingParcelIdx = 0
+          }
+
+          // Remove ONLY that single matching parcel
+          if (matchingParcelIdx >= 0) {
+            farmer.parcels.splice(matchingParcelIdx, 1)
+          }
+        }
+
+        // Recalculate farmer total area
+        farmer.area = (farmer.parcels || []).reduce((sum, p) => sum + (Number(p.area) || 0), 0)
+
+        // If no parcels left, delete the farmer and remove all markers
+        if (!farmer.parcels || farmer.parcels.length === 0) {
+          removeFarmerMarker(farmer)
+          farmers.value.splice(i, 1)
+          await markFarmerDeleted(farmer.name)
+          farmersToDelete.push(farmer)
+        } else {
+          farmersToUpdate.push(farmer)
+        }
+      }
+    }
+
+    if (farmersModified) {
+      farmersListRevision.value++
+      await persistFarmers()
+      renderFarmersData(farmers.value)
+
+      // Sync farmer deletions / updates to SQLite server
+      for (const f of farmersToDelete) {
+        apiDeleteFarmer(f.id || f.name).catch(() => {})
+      }
+      for (const f of farmersToUpdate) {
+        apiUpdateFarmer(f.id || f.name, f).catch(() => {})
+      }
+    }
+
+    // 6. Clear search selection if currently active on this deleted track or deleted farmer
+    if (searchInfoItem.value) {
+      const sName = (searchInfoItem.value.name || (searchInfoItem.value.data && searchInfoItem.value.data.name) || '').trim().toUpperCase()
+      if (sName === fileName.toUpperCase() || farmersToDelete.some(f => (f.name || '').toUpperCase() === sName)) {
+        searchInfoItem.value = null
+      }
+    }
+
+    // 7. Send DELETE request to server SQLite DB
+    const targetIdOrName = file.id || fileName
+    try {
+      await apiDeleteGpxTrack(targetIdOrName)
+    } catch (err) {
+      console.warn('Server delete GPX track warning:', err)
+    }
+
+    syncStatus.value = 'synced'
+    syncStatusText.value = `In sync (${farmers.value.length} farmers, ${uploadedFiles.value.length} tracks)`
+    lastSyncTime.value = new Date().toLocaleTimeString()
+    info(`Removed "${fileName}" and updated farmer records`)
+  } finally {
+    isDeletingGpx.value = false
   }
-  persistGpxTracks()
-  info(`Removed ${file.name} from list and map`)
 }
 
 function showAllFiles() {
@@ -3146,6 +3567,8 @@ async function removeAllFiles() {
   )
   if (!confirmed) return
 
+  const tracksToClear = [...uploadedFiles.value]
+
   if (gpxTracksLayerGroup) {
     gpxTracksLayerGroup.clearLayers()
   }
@@ -3157,7 +3580,9 @@ async function removeAllFiles() {
   await saveGisStorageData(STORAGE_KEY_GPX_TRACKS, [])
   await saveGisStorageData(STORAGE_KEY_DELETED_GPX, [])
 
-  await syncAllToServer(false, true, true)
+  for (const t of tracksToClear) {
+    apiDeleteGpxTrack(t.id || t.name).catch(() => {})
+  }
   info('Cleared all GPX tracks from map and server')
 }
 
@@ -3190,31 +3615,9 @@ async function clearAllGisMapData() {
   await saveGisStorageData(STORAGE_KEY_DELETED_FARMERS, [])
   await saveGisStorageData(STORAGE_KEY_DELETED_GPX, [])
 
-  // 4. Send clear & overwrite to server
+  // 4. Send clear to server SQLite database
   try {
-    const token = localStorage.getItem('token')
-    const headers = {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
-    }
-
-    // Try dedicated clear endpoint with valid JSON body (prevents Fastify empty body 400 error)
-    await fetch(`${API_BASE}/gis/clear`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ clear_all: true })
-    }).catch(() => {})
-
-    // Also send full_overwrite to sync endpoint to guarantee total wipe across any server version
-    await fetch(`${API_BASE}/gis/sync`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        farmers: [],
-        gpx_tracks: [],
-        full_overwrite: true
-      })
-    }).catch(() => {})
+    await apiClearAllGisData()
   } catch (e) {
     console.warn('Server clear request warning:', e)
   }
@@ -3346,14 +3749,19 @@ function autoRegisterFromGPX(fileName) {
     if (!existingFarmer.parcels) existingFarmer.parcels = []
     const alreadyHasCoord = existingFarmer.parcels.some(p => p.coords === coords)
     if (!alreadyHasCoord) {
-      existingFarmer.parcels.push({ area: areaHa, coords })
+      existingFarmer.parcels.push({ area: areaHa, coords, gpxFileName: fileName })
       existingFarmer.area = existingFarmer.parcels.reduce((sum, p) => sum + (Number(p.area) || 0), 0)
       addFarmerMarker(existingFarmer, file.center.lat, file.center.lng, existingFarmer.parcels.length - 1)
     } else {
       const matchingParcel = existingFarmer.parcels.find(p => p.coords === coords)
-      if (matchingParcel && Math.abs(Number(matchingParcel.area || 0) - areaHa) >= 0.0001) {
-        matchingParcel.area = areaHa
-        existingFarmer.area = existingFarmer.parcels.reduce((sum, p) => sum + (Number(p.area) || 0), 0)
+      if (matchingParcel) {
+        if (Math.abs(Number(matchingParcel.area || 0) - areaHa) >= 0.0001) {
+          matchingParcel.area = areaHa
+          existingFarmer.area = existingFarmer.parcels.reduce((sum, p) => sum + (Number(p.area) || 0), 0)
+        }
+        if (!matchingParcel.gpxFileName) {
+          matchingParcel.gpxFileName = fileName
+        }
       }
     }
     if (!existingFarmer.location || existingFarmer.location === 'ALCALA, CAGAYAN' || existingFarmer.location === 'Alcala') {
@@ -3364,6 +3772,7 @@ function autoRegisterFromGPX(fileName) {
     file.farmerName = existingFarmer.name
     unmarkFarmerDeleted(existingFarmer.name)
     persistFarmers()
+    apiUpdateFarmer(existingFarmer.id || existingFarmer.name, existingFarmer).catch(() => {})
     return existingFarmer
   }
 
@@ -3373,7 +3782,7 @@ function autoRegisterFromGPX(fileName) {
     commodity,
     gpxFileName: fileName,
     gpxFileNames: [fileName],
-    parcels: [{ area: areaHa, coords }]
+    parcels: [{ area: areaHa, coords, gpxFileName: fileName }]
   }
   farmer.area = areaHa
   file.farmerName = derived
@@ -3381,10 +3790,17 @@ function autoRegisterFromGPX(fileName) {
   farmers.value.push(farmer)
   persistFarmers()
   addFarmerMarker(farmer, file.center.lat, file.center.lng, 0)
+  apiCreateFarmer(farmer).then(saved => {
+    if (saved && saved.id) {
+      farmer.id = saved.id
+      if (Array.isArray(saved.parcels)) farmer.parcels = saved.parcels
+      persistFarmers()
+    }
+  }).catch(() => {})
   return farmer
 }
 
-function registerFarmer() {
+async function registerFarmer() {
   if (!newFarmer.value.name || !newFarmer.value.area) {
     warning('Please provide at least a Farmer Name and Farm Area.')
     return
@@ -3409,9 +3825,9 @@ function registerFarmer() {
     farmer.parcels.push({ area, coords })
   }
   farmer.area = farmer.parcels.reduce((sum, p) => sum + (p.area || 0), 0)
-  unmarkFarmerDeleted(farmer.name)
+  await unmarkFarmerDeleted(farmer.name)
   farmers.value.push(farmer)
-  persistFarmers()
+  await persistFarmers()
 
   if (coords) {
     const [lat, lng] = coords.split(',').map(Number)
@@ -3420,9 +3836,28 @@ function registerFarmer() {
     }
   }
 
+  const registeredName = farmer.name
+  const registeredLocation = farmer.location
   newFarmer.value = { name: '', location: '', area: '', coords: '', commodity: 'Rice' }
   autoPopulatedArea.value = null
-  success(`Farmer "${farmer.name}" registered in ${farmer.location}!`)
+
+  syncStatus.value = 'syncing'
+  syncStatusText.value = `Registering "${registeredName}"...`
+
+  try {
+    const saved = await apiCreateFarmer(farmer)
+    if (saved && saved.id) {
+      farmer.id = saved.id
+      if (Array.isArray(saved.parcels)) farmer.parcels = saved.parcels
+      await persistFarmers()
+    }
+    syncStatus.value = 'synced'
+    syncStatusText.value = `In sync (${farmers.value.length} farmers, ${uploadedFiles.value.length} tracks)`
+    lastSyncTime.value = new Date().toLocaleTimeString()
+    success(`Farmer "${registeredName}" registered in ${registeredLocation}!`)
+  } catch (err) {
+    console.warn('Server create farmer warning:', err)
+  }
 }
 
 function isGpxTrackRelatedToFarmer(track, farmer) {
@@ -3451,23 +3886,86 @@ function isGpxTrackRelatedToFarmer(track, farmer) {
     if (isDirectMatch) return true
   }
 
-  // 3. Track has explicitly assigned farmerName property matching this farmer
+  // 3. Linked by explicit gpxFileName on any of the farmer's parcels
+  if (Array.isArray(farmer.parcels)) {
+    const isParcelMatch = farmer.parcels.some(p => {
+      if (!p || !p.gpxFileName) return false
+      const fn = String(p.gpxFileName).trim().toUpperCase()
+      const fnBase = fn.replace(/\.GPX$/i, '').trim()
+      return fn === trackName || fnBase === trackBaseName
+    })
+    if (isParcelMatch) return true
+  }
+
+  // 4. Track has explicitly assigned farmerName property matching this farmer
   if (trackFarmerName && trackFarmerName === farmerName) {
     return true
   }
 
-  // 4. Track filename directly equals farmer name (e.g. "JUAN DELA CRUZ.gpx" for farmer "JUAN DELA CRUZ")
-  if (trackBaseName === farmerName) {
+  // 5. Track filename directly contains or equals farmer name
+  if (trackBaseName === farmerName || trackBaseName.includes(farmerName) || farmerName.includes(trackBaseName)) {
     return true
   }
 
-  // 5. Derived farmer name from GPX strictly equals farmer name
+  // 6. Derived farmer name from GPX strictly equals farmer name
   const derived = deriveNameFromGPX(track.name).trim().toUpperCase()
-  if (derived && derived !== 'UNKNOWN FARMER' && derived === farmerName) {
+  if (derived && derived !== 'UNKNOWN FARMER' && (derived === farmerName || farmerName.includes(derived) || derived.includes(farmerName))) {
     return true
   }
 
   return false
+}
+
+function findGpxTrackForParcel(farmer, parcel) {
+  if (!farmer || !parcel) return null
+  const farmerName = (farmer.name || '').trim().toUpperCase()
+
+  // 1. If parcel already has an explicit gpxFileName, check if that file exists in uploadedFiles
+  if (parcel.gpxFileName) {
+    const exact = uploadedFiles.value.find(t => t.name === parcel.gpxFileName)
+    if (exact) return exact
+  }
+
+  // 2. Filter uploadedFiles to ONLY tracks that belong to THIS specific farmer
+  const farmerTracks = uploadedFiles.value.filter(t => isGpxTrackRelatedToFarmer(t, farmer))
+
+  if (farmerTracks.length === 0) return null
+  if (farmerTracks.length === 1) return farmerTracks[0]
+
+  // 3. If farmer has multiple tracks, find the best match for this parcel among the farmer's tracks
+  const pArea = Number(parcel.area || 0)
+  let pLat = null
+  let pLng = null
+  if (parcel.coords) {
+    const parts = parcel.coords.split(',').map(Number)
+    if (!isNaN(parts[0]) && !isNaN(parts[1])) {
+      pLat = parts[0]
+      pLng = parts[1]
+    }
+  }
+
+  let bestMatch = null
+  let lowestScore = Infinity
+
+  for (const track of farmerTracks) {
+    let score = 0
+    // Area difference score
+    if (pArea > 0 && track.areaHectares > 0) {
+      const areaDiff = Math.abs(track.areaHectares - pArea)
+      score += areaDiff * 10
+    }
+    // Coordinate distance score
+    if (pLat !== null && pLng !== null && track.center) {
+      const dist = Math.hypot(track.center.lat - pLat, track.center.lng - pLng)
+      score += dist * 1000
+    }
+    if (score < lowestScore) {
+      lowestScore = score
+      bestMatch = track
+    }
+  }
+
+  return bestMatch
 }
 
 async function removeFarmer(target, skipConfirm = false) {
@@ -3482,73 +3980,70 @@ async function removeFarmer(target, skipConfirm = false) {
     if (!confirmed) return false
   }
 
+  isDeletingFarmer.value = true
   const targetName = (farmer.name || '').trim().toUpperCase()
+  syncStatus.value = 'syncing'
+  syncStatusText.value = `Deleting farmer "${targetName}"...`
 
-  // 1. Mark as deleted so server sync never restores this farmer
-  await markFarmerDeleted(targetName)
-
-  // 2. Remove farmer and marker
-  farmers.value.splice(index, 1)
-  removeFarmerMarker(farmer)
-  await persistFarmers()
-
-  // 3. Find and remove all related GPX tracks from map, uploadedFiles list, and storage
-  const removedTracks = []
-  for (let i = uploadedFiles.value.length - 1; i >= 0; i--) {
-    const track = uploadedFiles.value[i]
-    if (isGpxTrackRelatedToFarmer(track, farmer)) {
-      removedTracks.push(track.name)
-      await markGpxDeleted(track.name)
-
-      if (track.layer && gpxTracksLayerGroup) {
-        try { gpxTracksLayerGroup.removeLayer(track.layer) } catch (_) {}
-      }
-      if (gpxMarkersLayerGroup) {
-        if (track.startMarker) try { gpxMarkersLayerGroup.removeLayer(track.startMarker) } catch (_) {}
-        if (track.endMarker) try { gpxMarkersLayerGroup.removeLayer(track.endMarker) } catch (_) {}
-      }
-      uploadedFiles.value.splice(i, 1)
-    }
-  }
-
-  if (removedTracks.length > 0) {
-    await persistGpxTracks()
-  }
-
-  // 4. Clear search selection if currently on this farmer or deleted track
-  if (searchInfoItem.value) {
-    const sName = (searchInfoItem.value.name || (searchInfoItem.value.data && searchInfoItem.value.data.name) || '').trim().toUpperCase()
-    if (sName === targetName || removedTracks.some(rt => rt.toUpperCase() === sName)) {
-      searchInfoItem.value = null
-    }
-  }
-
-  // 5. Send DELETE requests to server endpoints
   try {
-    const token = localStorage.getItem('token')
-    fetch(`${API_BASE}/gis/farmers/${encodeURIComponent(targetName)}`, {
-      method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {})
-      }
-    }).catch(() => {})
+    // 1. Mark as deleted so server sync never restores this farmer
+    await markFarmerDeleted(targetName)
 
-    for (const trackName of removedTracks) {
-      fetch(`${API_BASE}/gis/tracks/${encodeURIComponent(trackName)}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
+    // 2. Remove farmer from in-memory list and map marker
+    farmers.value.splice(index, 1)
+    removeFarmerMarker(farmer)
+    await persistFarmers()
+
+    // 3. Find and remove all related GPX tracks from map, uploadedFiles list, and storage
+    const removedTracks = []
+    for (let i = uploadedFiles.value.length - 1; i >= 0; i--) {
+      const track = uploadedFiles.value[i]
+      if (isGpxTrackRelatedToFarmer(track, farmer)) {
+        removedTracks.push(track.name)
+        await markGpxDeleted(track.name)
+
+        if (track.layer && gpxTracksLayerGroup) {
+          try { gpxTracksLayerGroup.removeLayer(track.layer) } catch (_) {}
         }
-      }).catch(() => {})
+        if (gpxMarkersLayerGroup) {
+          if (track.startMarker) try { gpxMarkersLayerGroup.removeLayer(track.startMarker) } catch (_) {}
+          if (track.endMarker) try { gpxMarkersLayerGroup.removeLayer(track.endMarker) } catch (_) {}
+        }
+        uploadedFiles.value.splice(i, 1)
+      }
     }
-  } catch (e) {}
 
-  // 6. Force immediate sync with server to push current state without reverting
-  await syncAllToServer(false, true, true)
+    if (removedTracks.length > 0) {
+      await persistGpxTracks()
+    }
 
-  info(`Deleted farmer "${targetName}"${removedTracks.length > 0 ? ` and ${removedTracks.length} related GPX track(s)` : ''}`)
+    // 4. Clear search selection if currently on this farmer or deleted track
+    if (searchInfoItem.value) {
+      const sName = (searchInfoItem.value.name || (searchInfoItem.value.data && searchInfoItem.value.data.name) || '').trim().toUpperCase()
+      if (sName === targetName || removedTracks.some(rt => rt.toUpperCase() === sName)) {
+        searchInfoItem.value = null
+      }
+    }
+
+    // 5. Send DELETE requests to server endpoints
+    const farmerIdOrName = farmer.id || targetName
+    try {
+      await apiDeleteFarmer(farmerIdOrName)
+      for (const track of removedTracks) {
+        await apiDeleteGpxTrack(track)
+      }
+    } catch (e) {
+      console.warn('Server delete farmer warning:', e)
+    }
+
+    syncStatus.value = 'synced'
+    syncStatusText.value = `In sync (${farmers.value.length} farmers, ${uploadedFiles.value.length} tracks)`
+    lastSyncTime.value = new Date().toLocaleTimeString()
+    info(`Deleted farmer "${targetName}"${removedTracks.length > 0 ? ` and ${removedTracks.length} related GPX track(s)` : ''}`)
+    return true
+  } finally {
+    isDeletingFarmer.value = false
+  }
 }
 
 function locateFarmer(target) {
@@ -3590,9 +4085,16 @@ function editFarmer(target) {
   const clone = { ...farmer }
   clone.address = clone.address || null
   clone.location = resolveFarmerBarangay(farmer)
-  clone.parcels = (farmer.parcels || []).map(p => ({ ...p }))
+  clone.parcels = (farmer.parcels || []).map(p => {
+    const pClone = { ...p }
+    if (!pClone.gpxFileName) {
+      const match = findGpxTrackForParcel(farmer, pClone)
+      if (match) pClone.gpxFileName = match.name
+    }
+    return pClone
+  })
   if (clone.parcels.length === 0 && (clone.coords || clone.area)) {
-    clone.parcels.push({ area: clone.area || 0, coords: clone.coords || '' })
+    clone.parcels.push({ area: clone.area || 0, coords: clone.coords || '', gpxFileName: farmer.gpxFileName || null })
   }
   editingFarmer.value = clone
   editingIndex.value = index >= 0 ? index : farmers.value.findIndex(f => f.name && farmer.name && f.name.toUpperCase() === farmer.name.toUpperCase())
@@ -3629,24 +4131,24 @@ function addParcel(farmer) {
 }
 
 async function removeParcel(farmer, pIdx) {
-  if (!farmer) return
-  if (!farmer.parcels || farmer.parcels.length <= 1) {
-    const farmerName = farmer.name || 'this farmer'
-    const targetIdx = editingIndex.value >= 0 ? editingIndex.value : farmers.value.indexOf(farmer)
+  if (!farmer || !farmer.parcels || !farmer.parcels[pIdx]) return
 
-    // 1. Hide the Edit Farmer modal immediately so it is not visible behind/over the confirmation dialog
+  const targetIdx = editingIndex.value >= 0 ? editingIndex.value : farmers.value.indexOf(farmer)
+  const parcel = farmer.parcels[pIdx]
+  const isLastParcel = farmer.parcels.length <= 1
+
+  if (isLastParcel) {
+    const farmerName = farmer.name || 'this farmer'
     editingFarmer.value = null
     editingIndex.value = -1
 
-    // 2. Prompt confirmation
     const confirmed = await confirm(
       'Delete Farmer Profile',
-      `Deleting the only parcel will delete "${farmerName}" and remove any related GPX tracks from the map. Do you want to proceed and delete this farmer?`,
+      `Deleting the only parcel will delete "${farmerName}" and remove any related GPX tracks from the map. Do you want to proceed?`,
       'Delete Farmer'
     )
 
     if (!confirmed) {
-      // Restore Edit Farmer modal if user cancelled
       if (targetIdx >= 0 && farmers.value[targetIdx]) {
         editingFarmer.value = JSON.parse(JSON.stringify(farmers.value[targetIdx]))
         editingIndex.value = targetIdx
@@ -3654,123 +4156,221 @@ async function removeParcel(farmer, pIdx) {
       return
     }
 
-    // 3. Delete farmer directly without second redundant confirmation
     if (targetIdx >= 0) {
       await removeFarmer(targetIdx, true)
     }
     return
   }
+
+  // Multi-parcel removal
+  const confirmed = await confirm(
+    'Delete Parcel',
+    `Are you sure you want to remove Parcel #${pIdx + 1} (${parcel.area} ha)? If it is tied to a GPX track file, that GPX file will also be removed from the map and server.`,
+    'Delete Parcel'
+  )
+  if (!confirmed) return
+
+  // 1. Locate tied GPX track for this specific parcel
+  const linkedGpxName = parcel.gpxFileName
+  let matchingTrack = null
+
+  if (linkedGpxName) {
+    matchingTrack = uploadedFiles.value.find(t => t.name === linkedGpxName)
+  }
+
+  if (!matchingTrack && parcel.coords) {
+    const [pLat, pLng] = parcel.coords.split(',').map(Number)
+    if (!isNaN(pLat) && !isNaN(pLng)) {
+      matchingTrack = uploadedFiles.value.find(t => {
+        if (!t.center) return false
+        return Math.hypot(t.center.lat - pLat, t.center.lng - pLng) < 0.0003
+      })
+    }
+  }
+
+  // 2. If matching GPX track found, delete it from map, uploadedFiles, IndexedDB, and server
+  if (matchingTrack) {
+    const trackName = matchingTrack.name
+    await markGpxDeleted(trackName)
+
+    if (matchingTrack.layer && gpxTracksLayerGroup) {
+      try { gpxTracksLayerGroup.removeLayer(matchingTrack.layer) } catch (_) {}
+    }
+    if (gpxMarkersLayerGroup) {
+      if (matchingTrack.startMarker) try { gpxMarkersLayerGroup.removeLayer(matchingTrack.startMarker) } catch (_) {}
+      if (matchingTrack.endMarker) try { gpxMarkersLayerGroup.removeLayer(matchingTrack.endMarker) } catch (_) {}
+    }
+
+    const tIdx = uploadedFiles.value.indexOf(matchingTrack)
+    if (tIdx >= 0) {
+      uploadedFiles.value.splice(tIdx, 1)
+    }
+    gpxListRevision.value++
+    await persistGpxTracks()
+    apiDeleteGpxTrack(matchingTrack.id || trackName).catch(() => {})
+
+    if (Array.isArray(farmer.gpxFileNames)) {
+      farmer.gpxFileNames = farmer.gpxFileNames.filter(fn => fn !== trackName)
+    }
+    if (farmer.gpxFileName === trackName) {
+      farmer.gpxFileName = (farmer.gpxFileNames && farmer.gpxFileNames.length > 0) ? farmer.gpxFileNames[0] : null
+    }
+  }
+
+  // 3. Remove parcel from modal and farmers array
   farmer.parcels.splice(pIdx, 1)
   farmer.area = farmer.parcels.reduce((sum, p) => sum + (Number(p.area) || 0), 0)
+
+  if (targetIdx >= 0 && farmers.value[targetIdx]) {
+    farmers.value[targetIdx].parcels = farmer.parcels.map(p => ({ ...p }))
+    farmers.value[targetIdx].area = farmer.area
+    farmers.value[targetIdx].gpxFileName = farmer.gpxFileName
+    farmers.value[targetIdx].gpxFileNames = farmer.gpxFileNames
+    farmersListRevision.value++
+    await persistFarmers()
+    renderFarmersData(farmers.value)
+    apiUpdateFarmer(farmers.value[targetIdx].id || farmers.value[targetIdx].name, farmers.value[targetIdx]).catch(() => {})
+  }
+
+  info(`Removed Parcel #${pIdx + 1}${matchingTrack ? ` and its GPX track "${matchingTrack.name}"` : ''}`)
 }
 
-function saveFarmerEdit() {
+async function saveFarmerEdit() {
   if (editingIndex.value >= 0) {
-    const oldFarmer = farmers.value[editingIndex.value]
-    const updated = {
-      ...editingFarmer.value,
-      name: (editingFarmer.value.name || '').trim().toUpperCase(),
-      address: editingFarmer.value.address && editingFarmer.value.address.trim() ? editingFarmer.value.address.trim() : null,
-      location: (editingFarmer.value.location || '').trim().toUpperCase(),
-      updated_at: new Date().toISOString()
-    }
-    if (updated.parcels && updated.parcels.length > 0) {
-      updated.area = updated.parcels.reduce((sum, p) => sum + (Number(p.area) || 0), 0)
-    }
-    unmarkFarmerDeleted(updated.name)
-    if (oldFarmer.name && oldFarmer.name.trim().toUpperCase() !== updated.name) {
-      markFarmerDeleted(oldFarmer.name)
-    }
-    farmers.value[editingIndex.value] = updated
-    persistFarmers()
+    isSavingFarmer.value = true
+    syncStatus.value = 'syncing'
+    syncStatusText.value = 'Saving farmer...'
 
-    // 1. Sync corresponding GPX tracks in uploadedFiles and farm_area_gis_gpx_tracks
-    let gpxUpdated = false
-    const oldNameUpper = (oldFarmer.name || '').trim().toUpperCase()
-    const newNameUpper = updated.name
-
-    uploadedFiles.value.forEach(track => {
-      const trackDerivedName = deriveNameFromGPX(track.name).trim().toUpperCase()
-      const isNameMatch = trackDerivedName === oldNameUpper || 
-                          (track.name && track.name.toUpperCase().includes(oldNameUpper)) ||
-                          (track.farmerName && track.farmerName.toUpperCase() === oldNameUpper) ||
-                          (oldFarmer.gpxFileName && oldFarmer.gpxFileName === track.name) ||
-                          (oldFarmer.gpxFileNames && Array.isArray(oldFarmer.gpxFileNames) && oldFarmer.gpxFileNames.includes(track.name))
-
-      // Also check coordinate proximity match
-      let isCoordMatch = false
-      if (!isNameMatch && track.center && oldFarmer.parcels) {
-        isCoordMatch = oldFarmer.parcels.some(p => {
-          if (!p.coords) return false
-          const [pLat, pLng] = p.coords.split(',').map(Number)
-          return !isNaN(pLat) && !isNaN(pLng) && 
-                 Math.abs(pLat - track.center.lat) < 0.001 && 
-                 Math.abs(pLng - track.center.lng) < 0.001
-        })
+    try {
+      const oldFarmer = farmers.value[editingIndex.value]
+      const updated = {
+        ...editingFarmer.value,
+        name: (editingFarmer.value.name || '').trim().toUpperCase(),
+        address: editingFarmer.value.address && editingFarmer.value.address.trim() ? editingFarmer.value.address.trim() : null,
+        location: (editingFarmer.value.location || '').trim().toUpperCase(),
+        updated_at: new Date().toISOString()
       }
+      if (updated.parcels && updated.parcels.length > 0) {
+        updated.area = updated.parcels.reduce((sum, p) => sum + (Number(p.area) || 0), 0)
+      }
+      await unmarkFarmerDeleted(updated.name)
+      if (oldFarmer.name && oldFarmer.name.trim().toUpperCase() !== updated.name) {
+        await markFarmerDeleted(oldFarmer.name)
+      }
+      farmers.value[editingIndex.value] = updated
+      await persistFarmers()
 
-      if (isNameMatch || isCoordMatch) {
-        gpxUpdated = true
-        track.farmerName = newNameUpper
+      // 1. Sync corresponding GPX tracks in uploadedFiles and farm_area_gis_gpx_tracks
+      let gpxUpdated = false
+      const updatedTracks = []
+      const oldNameUpper = (oldFarmer.name || '').trim().toUpperCase()
+      const newNameUpper = updated.name
 
-        // If the track was named after the old farmer name, keep track.name synced
-        if (oldNameUpper && oldNameUpper !== newNameUpper) {
-          if (track.name.toUpperCase().includes(oldNameUpper)) {
-            track.name = track.name.replace(new RegExp(oldNameUpper, 'i'), newNameUpper)
-          } else if (trackDerivedName === oldNameUpper) {
-            track.name = `${newNameUpper}.gpx`
+      uploadedFiles.value.forEach(track => {
+        const trackDerivedName = deriveNameFromGPX(track.name).trim().toUpperCase()
+        const isNameMatch = trackDerivedName === oldNameUpper || 
+                            (track.name && track.name.toUpperCase().includes(oldNameUpper)) ||
+                            (track.farmerName && track.farmerName.toUpperCase() === oldNameUpper) ||
+                            (oldFarmer.gpxFileName && oldFarmer.gpxFileName === track.name) ||
+                            (oldFarmer.gpxFileNames && Array.isArray(oldFarmer.gpxFileNames) && oldFarmer.gpxFileNames.includes(track.name))
+
+        // Also check coordinate proximity match
+        let isCoordMatch = false
+        if (!isNameMatch && track.center && oldFarmer.parcels) {
+          isCoordMatch = oldFarmer.parcels.some(p => {
+            if (!p.coords) return false
+            const [pLat, pLng] = p.coords.split(',').map(Number)
+            return !isNaN(pLat) && !isNaN(pLng) && 
+                   Math.abs(pLat - track.center.lat) < 0.001 && 
+                   Math.abs(pLng - track.center.lng) < 0.001
+          })
+        }
+
+        if (isNameMatch || isCoordMatch) {
+          gpxUpdated = true
+          track.farmerName = newNameUpper
+
+          // If the track was named after the old farmer name, keep track.name synced
+          if (oldNameUpper && oldNameUpper !== newNameUpper) {
+            if (track.name.toUpperCase().includes(oldNameUpper)) {
+              track.name = track.name.replace(new RegExp(oldNameUpper, 'i'), newNameUpper)
+            } else if (trackDerivedName === oldNameUpper) {
+              track.name = `${newNameUpper}.gpx`
+            }
           }
-        }
-        track.address = updated.address
-        track.location = updated.location
-        track.commodity = updated.commodity
+          track.address = updated.address
+          track.location = updated.location
+          track.commodity = updated.commodity
 
-        if (updated.parcels && updated.parcels.length === 1 && updated.parcels[0].area > 0) {
-          track.areaHectares = Number(updated.parcels[0].area)
-          track.areaKm2 = track.areaHectares / 100
-        }
+          if (updated.parcels && updated.parcels.length === 1 && updated.parcels[0].area > 0) {
+            track.areaHectares = Number(updated.parcels[0].area)
+            track.areaKm2 = track.areaHectares / 100
+          }
 
-        // Update popup immediately if layer exists
-        if (track.layer) {
-          const newPopupHtml = buildGpxPopupHtml(track.name, track.points, track.color, track.areaHectares, track.areaKm2, track.isEnclosed, track.center)
-          track.layer.setPopupContent(newPopupHtml)
+          // Update popup immediately if layer exists
+          if (track.layer) {
+            const newPopupHtml = buildGpxPopupHtml(track.name, track.points, track.color, track.areaHectares, track.areaKm2, track.isEnclosed, track.center)
+            track.layer.setPopupContent(newPopupHtml)
+          }
+          if (track.startMarker) {
+            track.startMarker.setPopupContent(`<strong>${escapeHtml(newNameUpper)}</strong><br>Track Start<br><small>${track.points && track.points[0] ? `${track.points[0][0].toFixed(5)}, ${track.points[0][1].toFixed(5)}` : ''}</small>`)
+          }
+          if (track.endMarker) {
+            track.endMarker.setPopupContent(`<strong>${escapeHtml(newNameUpper)}</strong><br>Track End<br><small>${track.points && track.points.length ? `${track.points[track.points.length - 1][0].toFixed(5)}, ${track.points[track.points.length - 1][1].toFixed(5)}` : ''}</small>`)
+          }
+
+          updatedTracks.push(track)
         }
-        if (track.startMarker) {
-          track.startMarker.setPopupContent(`<strong>${escapeHtml(newNameUpper)}</strong><br>Track Start<br><small>${track.points && track.points[0] ? `${track.points[0][0].toFixed(5)}, ${track.points[0][1].toFixed(5)}` : ''}</small>`)
-        }
-        if (track.endMarker) {
-          track.endMarker.setPopupContent(`<strong>${escapeHtml(newNameUpper)}</strong><br>Track End<br><small>${track.points && track.points.length ? `${track.points[track.points.length - 1][0].toFixed(5)}, ${track.points[track.points.length - 1][1].toFixed(5)}` : ''}</small>`)
+      })
+
+      if (gpxUpdated) {
+        await persistGpxTracks()
+        for (const t of updatedTracks) {
+          apiUpdateGpxTrack(t.id || t.name, t).catch(() => {})
         }
       }
-    })
 
-    if (gpxUpdated) {
-      persistGpxTracks()
-    }
+      // 2. Refresh all farmer markers on the map
+      renderFarmersData(farmers.value)
 
-    // 2. Refresh all farmer markers on the map
-    renderFarmersData(farmers.value)
-
-    // 3. Update search info panel if open for this farmer
-    if (searchInfoItem.value) {
-      if (searchInfoItem.value.data && (searchInfoItem.value.data.name === oldFarmer.name || searchInfoItem.value.name === oldFarmer.name)) {
-        searchInfoItem.value.name = updated.name
-        searchInfoItem.value.address = updated.address
-        searchInfoItem.value.location = updated.location
-        searchInfoItem.value.commodity = updated.commodity
-        searchInfoItem.value.area = updated.area
-        searchInfoItem.value.parcels = updated.parcels
-        searchInfoItem.value.data = { ...searchInfoItem.value.data, ...updated }
+      // 3. Update search info panel if open for this farmer
+      if (searchInfoItem.value) {
+        if (searchInfoItem.value.data && (searchInfoItem.value.data.name === oldFarmer.name || searchInfoItem.value.name === oldFarmer.name)) {
+          searchInfoItem.value.name = updated.name
+          searchInfoItem.value.address = updated.address
+          searchInfoItem.value.location = updated.location
+          searchInfoItem.value.commodity = updated.commodity
+          searchInfoItem.value.area = updated.area
+          searchInfoItem.value.parcels = updated.parcels
+          searchInfoItem.value.data = { ...searchInfoItem.value.data, ...updated }
+        }
       }
+
+      // 4. Trigger leaflet popup updates
+      refreshAllMapPopups()
+
+      const targetIdOrName = updated.id || oldFarmer.id || oldNameUpper
+      try {
+        const saved = await apiUpdateFarmer(targetIdOrName, updated)
+        if (saved && saved.id) {
+          updated.id = saved.id
+          if (Array.isArray(saved.parcels)) updated.parcels = saved.parcels
+          await persistFarmers()
+        }
+      } catch (err) {
+        console.warn('Server update farmer warning:', err)
+      }
+
+      syncStatus.value = 'synced'
+      syncStatusText.value = `In sync (${farmers.value.length} farmers, ${uploadedFiles.value.length} tracks)`
+      lastSyncTime.value = new Date().toLocaleTimeString()
+      success(`Updated farmer "${updated.name}"`)
+    } finally {
+      isSavingFarmer.value = false
+      editingFarmer.value = null
+      editingIndex.value = -1
     }
-
-    // 4. Trigger leaflet popup updates
-    refreshAllMapPopups()
-
-    success(`Updated farmer "${updated.name}"`)
   }
-  editingFarmer.value = null
-  editingIndex.value = -1
 }
 
 // Drawing & Measurements
@@ -4237,35 +4837,20 @@ function escapeHtml(str) {
     .replace(/'/g, '&#039;')
 }
 
-function queueServerSync() {
-  if (saveDebounceTimer) clearTimeout(saveDebounceTimer)
-  saveDebounceTimer = setTimeout(() => {
-    syncAllToServer(false, true, true)
-  }, 1200)
-}
-
 async function fetchGisDataFromServer(showNotification = false, isBackground = false) {
   if (syncStatus.value === 'syncing' && !isInitialLoading.value) return
   
   const hasLocalData = farmers.value.length > 0 || uploadedFiles.value.length > 0
   if (!isBackground) {
     syncStatus.value = 'syncing'
-    syncStatusText.value = 'Pulling latest data from server...'
+    syncStatusText.value = 'Loading GIS data from server...'
     if (!hasLocalData) {
       isInitialLoading.value = true
       loadingMessage.value = 'Connecting to server & downloading GIS data...'
     }
   }
   try {
-    const token = localStorage.getItem('token')
-    const res = await fetch(`${API_BASE}/gis/sync`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {})
-      }
-    })
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    const data = await res.json()
+    const data = await apiFetchAllGisData()
     if (data.code === 200) {
       const rawServerFarmers = Array.isArray(data.farmers) ? data.farmers : []
       const rawServerTracks = Array.isArray(data.gpx_tracks) ? data.gpx_tracks : []
@@ -4294,23 +4879,7 @@ async function fetchGisDataFromServer(showNotification = false, isBackground = f
           loadingMessage.value = `Loading ${serverTracks.length} GPX tracks from server...`
         }
         await renderGpxTracksData(serverTracks)
-        const tracksToSave = uploadedFiles.value.map(f => ({
-          name: f.name,
-          farmerName: f.farmerName || null,
-          address: f.address || null,
-          location: f.location || null,
-          commodity: f.commodity || null,
-          points: f.points,
-          color: f.color,
-          center: f.center,
-          pointCount: f.pointCount,
-          visible: f.visible !== false,
-          areaKm2: f.areaKm2,
-          areaHectares: f.areaHectares,
-          areaMethod: f.areaMethod,
-          isEnclosed: f.isEnclosed
-        }))
-        await saveGisStorageData(STORAGE_KEY_GPX_TRACKS, tracksToSave)
+        await saveGisStorageData(STORAGE_KEY_GPX_TRACKS, serverTracks)
       }
 
       refreshAllMapPopups()
@@ -4339,108 +4908,58 @@ async function fetchGisDataFromServer(showNotification = false, isBackground = f
   }
 }
 
-async function syncAllToServer(isInitialMigration = false, silent = false, isBackground = false) {
-  const isQuiet = isBackground || silent
-  if (!isQuiet) {
-    syncStatus.value = 'syncing'
-    syncStatusText.value = 'Uploading to server...'
-  }
+async function uploadAllLocalToServer(showNotification = true) {
+  if (syncStatus.value === 'syncing') return
+  syncStatus.value = 'syncing'
+  syncStatusText.value = 'Uploading to server...'
   try {
-    const token = localStorage.getItem('token')
-    const farmersToUpload = farmers.value
-      .filter(f => !deletedFarmerNames.value.has((f.name || '').trim().toUpperCase()))
-      .map(f => {
-        const parcels = (f.parcels && f.parcels.length > 0)
-          ? f.parcels.map(p => ({
-              area: Number(Number(p.area || 0).toFixed(4)),
-              coords: String(p.coords || '').trim()
-            }))
-          : (f.coords && f.area
-              ? [{ area: Number(Number(f.area).toFixed(4)), coords: String(f.coords).trim() }]
-              : [])
-        return {
-          name: (f.name || '').trim().toUpperCase(),
-          address: f.address && String(f.address).trim() ? String(f.address).trim() : null,
-          location: resolveFarmerBarangay(f),
-          commodity: f.commodity || 'Rice',
-          area: Number(f.area || 0),
-          parcels,
-          gpxFileName: f.gpxFileName || null,
-          gpxFileNames: f.gpxFileNames || (f.gpxFileName ? [f.gpxFileName] : []),
-          updated_at: f.updated_at || new Date().toISOString()
-        }
-      })
+    const farmersToUpload = farmers.value.map(f => ({
+      name: f.name,
+      address: f.address || null,
+      location: resolveFarmerBarangay(f),
+      commodity: f.commodity || 'Rice',
+      area: f.area,
+      parcels: f.parcels || [],
+      gpxFileName: f.gpxFileName || null,
+      gpxFileNames: f.gpxFileNames || []
+    }))
 
-    const tracksToUpload = uploadedFiles.value
-      .filter(f => !deletedGpxNames.value.has((f.name || '').trim().toLowerCase()))
-      .map(f => ({
-        name: f.name,
-        farmerName: f.farmerName ? String(f.farmerName).trim().toUpperCase() : null,
-        address: f.address && String(f.address).trim() ? String(f.address).trim() : null,
-        location: resolveGpxBarangay(f.name, f.center),
-        commodity: f.commodity || null,
-        points: f.points,
-        color: f.color,
-        center: f.center,
-        pointCount: f.pointCount,
-        visible: f.visible !== false,
-        areaKm2: f.areaKm2,
-        areaHectares: f.areaHectares,
-        areaMethod: f.areaMethod,
-        isEnclosed: f.isEnclosed,
-        updated_at: f.updated_at || new Date().toISOString()
-      }))
+    const tracksToUpload = uploadedFiles.value.map(f => ({
+      name: f.name,
+      farmerName: f.farmerName || null,
+      address: f.address || null,
+      location: resolveGpxBarangay(f.name, f.center),
+      commodity: f.commodity || null,
+      points: f.points,
+      color: f.color,
+      center: f.center,
+      pointCount: f.pointCount,
+      visible: f.visible !== false,
+      areaKm2: f.areaKm2,
+      areaHectares: f.areaHectares,
+      areaMethod: f.areaMethod,
+      isEnclosed: f.isEnclosed
+    }))
 
-    const res = await fetch(`${API_BASE}/gis/sync`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {})
-      },
-      body: JSON.stringify({
-        farmers: farmersToUpload,
-        gpx_tracks: tracksToUpload,
-        deleted_farmers: Array.from(deletedFarmerNames.value),
-        deleted_gpx_tracks: Array.from(deletedGpxNames.value),
-        full_overwrite: false
-      })
-    })
+    if (farmersToUpload.length > 0) {
+      await apiCreateFarmer(farmersToUpload)
+    }
+    if (tracksToUpload.length > 0) {
+      await apiCreateGpxTracks(tracksToUpload)
+    }
 
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    const result = await res.json()
-
-    if (result.code === 200) {
-      if (Array.isArray(result.farmers)) {
-        const filteredFarmers = result.farmers.filter(f => !deletedFarmerNames.value.has((f.name || '').trim().toUpperCase()))
-        await saveGisStorageData(STORAGE_KEY_FARMERS, filteredFarmers)
-        await renderFarmersData(filteredFarmers)
-      }
-      if (Array.isArray(result.gpx_tracks)) {
-        const filteredTracks = result.gpx_tracks.filter(t => !deletedGpxNames.value.has((t.name || '').trim().toLowerCase()))
-        await saveGisStorageData(STORAGE_KEY_GPX_TRACKS, filteredTracks)
-        await renderGpxTracksData(filteredTracks)
-      }
-      refreshAllMapPopups()
-
-      if (!isQuiet) {
-        syncStatus.value = 'synced'
-        syncStatusText.value = `In sync (${farmers.value.length} farmers, ${uploadedFiles.value.length} tracks)`
-      }
-      lastSyncTime.value = new Date().toLocaleTimeString()
-      if (!silent) {
-        success(isInitialMigration ? 'Local GIS data synced to server!' : 'All GIS data saved to server!')
-      }
-    } else {
-      throw new Error(result.message || 'Sync failed')
+    syncStatus.value = 'synced'
+    syncStatusText.value = `In sync (${farmers.value.length} farmers, ${uploadedFiles.value.length} tracks)`
+    lastSyncTime.value = new Date().toLocaleTimeString()
+    if (showNotification) {
+      success(`Saved ${farmers.value.length} farmers and ${uploadedFiles.value.length} tracks to SQLite server!`)
     }
   } catch (err) {
-    if (!isQuiet) {
-      console.error('Failed to sync GIS data with server:', err)
-      syncStatus.value = 'offline'
-      syncStatusText.value = 'Local only (Server unreachable)'
-      if (!silent) {
-        warning('Data saved locally. Server unreachable.')
-      }
+    console.error('Failed to upload local GIS data:', err)
+    syncStatus.value = 'offline'
+    syncStatusText.value = 'Local only (Server unreachable)'
+    if (showNotification) {
+      warning('Could not connect to server. Data remains safe locally in IndexedDB.')
     }
   }
 }
@@ -4622,8 +5141,8 @@ onBeforeUnmount(() => {
 .sidebar-toggle-btn {
   position: absolute;
   top: 10px;
-  right: -14px;
-  z-index: 20;
+  right: 0px;
+  z-index: 9999;
   width: 28px;
   height: 28px;
   border-radius: 50%;
@@ -4989,13 +5508,15 @@ onBeforeUnmount(() => {
 }
 
 .gpx-file-cards-list {
-  height: 240px;
-  max-height: 240px;
+  height: 260px;
+  max-height: 260px;
   overflow-y: auto;
+  padding: 4px 6px 8px;
+  box-sizing: border-box;
 }
 
 .gpx-file-cards-list .vue-recycle-scroller__item-view {
-  padding-bottom: 6px;
+  padding-bottom: 10px;
   box-sizing: border-box;
 }
 
@@ -5003,7 +5524,13 @@ onBeforeUnmount(() => {
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 0.5rem 0.65rem;
+  padding: 0.55rem 0.65rem;
+  box-sizing: border-box;
+  min-height: 100px;
+  margin-bottom: 6px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
 }
 
 .gpx-file-item.hidden {
@@ -5247,13 +5774,15 @@ select.field-control-sm {
 }
 
 .farmers-list-container {
-  height: 320px;
-  max-height: 320px;
+  height: 330px;
+  max-height: 330px;
   overflow-y: auto;
+  padding: 4px 6px 8px;
+  box-sizing: border-box;
 }
 
 .farmers-list-container .vue-recycle-scroller__item-view {
-  padding-bottom: 6px;
+  padding-bottom: 10px;
   box-sizing: border-box;
 }
 
@@ -5261,7 +5790,13 @@ select.field-control-sm {
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 0.45rem 0.65rem;
+  padding: 0.55rem 0.65rem;
+  box-sizing: border-box;
+  min-height: 116px;
+  margin-bottom: 6px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
 }
 
 .farmer-card-header {

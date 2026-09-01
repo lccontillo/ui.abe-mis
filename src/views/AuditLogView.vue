@@ -4,6 +4,7 @@ import BreadcrumbNav from '@/components/BreadcrumbNav.vue'
 import TitleBar from '@/components/TitleBar.vue'
 import DataTable from '@/components/DataTable.vue'
 import PaginationBar from '@/components/PaginationBar.vue'
+import { API_BASE } from '@/config/api'
 
 const logs = ref([])
 const users = ref([])
@@ -39,7 +40,7 @@ const fetchLogs = async () => {
   if (filterAction.value) params.append('action_id', filterAction.value)
 
   try {
-    const res = await fetch(`https://api-abealcala.duckdns.org/audit_logs?${params}`, {
+    const res = await fetch(`${API_BASE}/audit_logs?${params}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
 

@@ -85,6 +85,7 @@ import BreadcrumbNav from '@/components/BreadcrumbNav.vue'
 import PaginationBar from '@/components/PaginationBar.vue'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { Add20, Search20, View20, TrashCan20, Launch20 } from '@carbon/icons-vue'
+import { API_BASE } from '@/config/api'
 
 const router = useRouter()
 const token = localStorage.getItem('token')
@@ -146,7 +147,7 @@ function viewFca(id) {
   router.push(`/fca/${id}`)
 }
 
-function openLink(url) {
+function openWebsite(url) {
   if (url) {
     window.open(url, '_blank')
   }
@@ -156,7 +157,7 @@ async function deleteFca(id) {
   if (!await confirm('Delete FCA?', 'Are you sure you want to delete this FCA? This action cannot be undone.', 'Delete')) return
 
   try {
-    const res = await fetch(`https://api-abealcala.duckdns.org/fcas/${id}`, {
+    const res = await fetch(`${API_BASE}/fcas/${id}`, {
       method: 'DELETE',
       headers: {
         Authorization: `Bearer ${token}`,
@@ -187,7 +188,7 @@ async function fetchFcas() {
   params.append('limit', pagination.value.limit)
 
   try {
-    const res = await fetch(`https://api-abealcala.duckdns.org/fcas?${params}`, {
+    const res = await fetch(`${API_BASE}/fcas?${params}`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },

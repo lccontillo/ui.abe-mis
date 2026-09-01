@@ -119,7 +119,7 @@ const userStore = useUserStore()
 const { success, error } = useToast()
 const { confirm } = useConfirmDialog()
 
-const API_BASE = import.meta.env.VITE_API_ENDPOINT || 'https://api-abealcala.duckdns.org'
+const API_BASE = import.meta.env.VITE_API_ENDPOINT || 'http://localhost:3000'
 const GIS_IDB_DB_NAME = 'farm_area_gis_db'
 const GIS_IDB_STORE_NAME = 'gis_store'
 const STORAGE_KEY_FARMERS = 'farm_area_gis_farmers'

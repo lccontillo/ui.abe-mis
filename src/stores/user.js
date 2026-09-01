@@ -1,6 +1,8 @@
 // src/stores/user.js
 import { defineStore } from 'pinia'
 
+import { API_BASE } from '@/config/api'
+
 export const useUserStore = defineStore('user', {
   state: () => ({
     user: null,
@@ -11,7 +13,7 @@ export const useUserStore = defineStore('user', {
       if (!token) return
 
       try {
-        const res = await fetch('https://api-abealcala.duckdns.org/me', {
+        const res = await fetch(`${API_BASE}/me`, {
           headers: {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',

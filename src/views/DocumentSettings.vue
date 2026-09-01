@@ -121,6 +121,7 @@ import PaginationBar from '@/components/PaginationBar.vue'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { Document20 } from '@carbon/icons-vue'
 import { useHashModal } from '@/composables/useHashModal'
+import { API_BASE } from '@/config/api'
 
 const token = localStorage.getItem('token')
 const router = useRouter()
@@ -138,33 +139,42 @@ const sort = ref({ column: 'name', order: 'asc' })
 const pagination = ref({ page: 1, limit: 10 })
 const totalPages = computed(() => Math.ceil(total.value / pagination.value.limit))
 
-const showGroupModal = ref(false)
-const newGroupName = ref('')
-
-const showEditGroupModal = ref(false)
 const editingGroup = ref(null)
 const updatedGroupName = ref('')
 
-const showDocumentModal = ref(false)
 const editingDocument = ref(null)
 const form = ref({ group_id: '', name: '', file: null })
+
+const columns = [
+  { label: 'Document Name', key: 'name', sortable: true },
+  { label: 'File Path', key: 'file_path' },
+  { label: 'Created At', key: 'created_at', sortable: true },
+]
+
+const showGroupModal = ref(false)
+const showEditGroupModal = ref(false)
+const showDocumentModal = ref(false)
+const newGroupName = ref('')
 const { openHashModal, closeHashModal } = useHashModal({
   'new-group': (isOpen) => {
     showGroupModal.value = isOpen
   },
   'edit-group': (isOpen) => {
-    showEditGroupModal.value = isOpen
+    showEditGroupModal.value = isOpen && Boolean(editingGroup.value)
   },
   'document-modal': (isOpen) => {
     showDocumentModal.value = isOpen
   },
 })
 
-const columns = [
-  { label: 'Name', key: 'name', sortable: true },
-  { label: 'Group', key: 'group_name', sortable: true },
-  { label: 'File', key: 'file_uri' },
-]
+function handleFileChange(event) {
+  form.value.file = event.target.files[0]
+}
+
+function selectGroup(groupId) {
+  activeGroupId.value = groupId
+  fetchDocuments()
+}
 
 function toggleSort(column) {
   if (sort.value.column === column) {
@@ -177,7 +187,7 @@ function toggleSort(column) {
 }
 
 async function fetchGroups() {
-  const res = await fetch('https://api-abealcala.duckdns.org/groups', {
+  const res = await fetch(`${API_BASE}/groups`, {
     headers: { Authorization: `Bearer ${token}` },
   })
   groups.value = await res.json()
@@ -185,7 +195,7 @@ async function fetchGroups() {
 
 async function fetchDocuments() {
   isLoading.value = true
-  const url = new URL('https://api-abealcala.duckdns.org/documents')
+  const url = new URL(`${API_BASE}/documents`)
   if (activeGroupId.value) url.searchParams.set('group', activeGroupId.value)
   url.searchParams.set('sort', sort.value.column)
   url.searchParams.set('order', sort.value.order)
@@ -203,7 +213,7 @@ async function fetchDocuments() {
 }
 
 async function createGroup() {
-  await fetch('https://api-abealcala.duckdns.org/group', {
+  await fetch(`${API_BASE}/group`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ name: newGroupName.value }),
@@ -226,7 +236,7 @@ function startEditGroup(group) {
 }
 
 async function updateGroup() {
-  await fetch('https://api-abealcala.duckdns.org/group', {
+  await fetch(`${API_BASE}/group`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ id: editingGroup.value.id, name: updatedGroupName.value }),
@@ -267,8 +277,8 @@ async function submitDocument() {
   if (form.value.file) fd.append('file', form.value.file)
 
   const url = isEdit
-    ? `https://api-abealcala.duckdns.org/document/${editingDocument.value.id}`
-    : 'https://api-abealcala.duckdns.org/document'
+    ? `${API_BASE}/document/${editingDocument.value.id}`
+    : `${API_BASE}/document`
 
   try {
     await fetch(url, {
@@ -289,7 +299,7 @@ async function submitDocument() {
 
 async function deleteDocument(doc) {
   if (!await confirm('Delete Document?', 'Are you sure you want to delete this document template?', 'Delete')) return
-  await fetch(`https://api-abealcala.duckdns.org/document/${doc.id}`, {
+  await fetch(`${API_BASE}/document/${doc.id}`, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${token}` },
   })
@@ -298,7 +308,7 @@ async function deleteDocument(doc) {
 
 async function deleteGroup(groupId) {
   if (!await confirm('Delete Group?', 'Are you sure you want to delete this group and all its documents?', 'Delete')) return
-  await fetch(`https://api-abealcala.duckdns.org/group/${groupId}`, {
+  await fetch(`${API_BASE}/group/${groupId}`, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${token}` },
   })

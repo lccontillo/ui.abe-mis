@@ -6,6 +6,7 @@ import TitleBar from '@/components/TitleBar.vue'
 import SkeletonLoader from '@/components/SkeletonLoader.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import { useUserStore } from '@/stores/user'
+import { API_BASE } from '@/config/api'
 const userStore = useUserStore()
 
 const token = localStorage.getItem('token')
@@ -15,7 +16,7 @@ const isLoading = ref(true)
 const router = useRouter()
 
 const fetchStats = async () => {
-  const res = await fetch('https://api-abealcala.duckdns.org/dashboard', {
+  const res = await fetch(`${API_BASE}/dashboard`, {
     headers: { Authorization: `Bearer ${token}` },
   })
   stats.value = await res.json()
@@ -23,7 +24,7 @@ const fetchStats = async () => {
 
 const fetchRecentLogs = async () => {
   const params = new URLSearchParams({ page: 1, limit: 10, sort: 'created_at', order: 'desc' })
-  const res = await fetch(`https://api-abealcala.duckdns.org/audit_logs?${params}`, {
+  const res = await fetch(`${API_BASE}/audit_logs?${params}`, {
     headers: { Authorization: `Bearer ${token}` },
   })
   const data = await res.json()

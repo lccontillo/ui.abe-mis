@@ -85,6 +85,7 @@ import DataTable from '@/components/DataTable.vue'
 import Modal from '@/components/Modal.vue'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { useHashModal } from '@/composables/useHashModal'
+import { API_BASE } from '@/config/api'
 
 const users = ref([])
 const total = ref(0)
@@ -131,7 +132,7 @@ const passwordForm = reactive({
 async function fetchUsers() {
   isLoading.value = true
   try {
-    const res = await fetch('https://api-abealcala.duckdns.org/users', {
+    const res = await fetch(`${API_BASE}/users`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -146,7 +147,7 @@ async function fetchUsers() {
 
 async function createUser() {
   try {
-    const res = await fetch('https://api-abealcala.duckdns.org/create_user', {
+    const res = await fetch(`${API_BASE}/create_user`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -195,7 +196,7 @@ async function confirmToggle(user) {
 
 async function toggleActivation(user) {
   try {
-    const res = await fetch(`https://api-abealcala.duckdns.org/toggle_user/${user.id}`, {
+    const res = await fetch(`${API_BASE}/toggle_user/${user.id}`, {
       method: 'PUT',
       headers: {
         Authorization: `Bearer ${token}`,
@@ -223,7 +224,7 @@ async function updatePassword() {
   }
 
   try {
-    const res = await fetch(`https://api-abealcala.duckdns.org/update_password`, {
+    const res = await fetch(`${API_BASE}/update_password`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',

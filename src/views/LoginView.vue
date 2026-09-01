@@ -52,6 +52,7 @@ import UserNameField from '@/components/UserNameField.vue'
 import PasswordField from '@/components/PasswordField.vue'
 import Toast from '@/components/Toast.vue'
 import DonutLoader from '@/components/DonutLoader.vue'
+import { API_BASE } from '@/config/api'
 const { proxy } = getCurrentInstance()
 import { useUserStore } from '@/stores/user'
 
@@ -92,7 +93,7 @@ async function login() {
   loading.value = true
   error.value = ''
   try {
-    const res = await fetch('https://api-abealcala.duckdns.org/login', {
+    const res = await fetch(`${API_BASE}/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: username.value, password: password.value }),
