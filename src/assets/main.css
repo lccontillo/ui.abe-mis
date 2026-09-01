@@ -276,13 +276,20 @@ table {
 .modal-mask {
   position: fixed;
   inset: 0;
-  z-index: var(--z-modal);
+  z-index: var(--z-modal, 1050);
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 1rem;
   background: rgba(8, 13, 10, 0.58);
   backdrop-filter: blur(4px);
+}
+
+.confirm-dialog-overlay,
+.modal-overlay.confirm-dialog-overlay {
+  z-index: 99999 !important;
+  background: rgba(0, 0, 0, 0.68) !important;
+  backdrop-filter: blur(6px) !important;
 }
 
 .modal-content {
