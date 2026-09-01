@@ -467,11 +467,23 @@
                   type="button" 
                   class="btn btn-secondary btn-sm" 
                   :disabled="syncStatus === 'syncing'" 
-                  title="Pull latest GIS data from server"
+                  title="Pull latest incremental changes from server"
                   @click="fetchGisDataFromServer(true)"
                 >
                   <Reset20 class="btn-icon" :class="{ 'rotating-icon': syncStatus === 'syncing' }" />
-                  <span>Pull from Server</span>
+                  <span>Pull Changes</span>
+                </button>
+              </div>
+              <div style="margin-top: 0.5rem; text-align: right;">
+                <button
+                  type="button"
+                  class="btn-link-action font-mono"
+                  style="font-size: 11px; color: var(--text-muted); background: none; border: none; cursor: pointer; text-decoration: underline;"
+                  :disabled="syncStatus === 'syncing'"
+                  title="Force download full baseline dataset from server"
+                  @click="fetchGisDataFromServer(true, false, true)"
+                >
+                  Force Full Refresh
                 </button>
               </div>
             </div>
@@ -1198,9 +1210,11 @@ async function loadGisStorageData(key) {
 
 const STORAGE_KEY_DELETED_FARMERS = 'farm_area_gis_deleted_farmers'
 const STORAGE_KEY_DELETED_GPX = 'farm_area_gis_deleted_gpx'
+const STORAGE_KEY_LAST_SYNCED = 'farm_area_gis_last_synced_at'
 
 const deletedFarmerNames = ref(new Set())
 const deletedGpxNames = ref(new Set())
+const lastSyncedTimestamp = ref(null)
 
 async function loadDeletedKeys() {
   try {
@@ -1257,6 +1271,25 @@ function getAuthHeaders(includeContentType = true) {
     ...(includeContentType ? { 'Content-Type': 'application/json' } : {}),
     ...(token ? { Authorization: `Bearer ${token}` } : {})
   }
+}
+
+async function apiFetchGisChanges(sinceTimestamp = null) {
+  const url = sinceTimestamp
+    ? `${API_BASE}/gis/changes?since=${encodeURIComponent(sinceTimestamp)}`
+    : `${API_BASE}/gis/changes`
+  const res = await fetch(url, {
+    headers: getAuthHeaders(false)
+  })
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  return await res.json()
+}
+
+async function apiFetchGisVersion() {
+  const res = await fetch(`${API_BASE}/gis/version`, {
+    headers: getAuthHeaders(false)
+  })
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  return await res.json()
 }
 
 async function apiFetchAllGisData() {
@@ -4837,60 +4870,227 @@ function escapeHtml(str) {
     .replace(/'/g, '&#039;')
 }
 
-async function fetchGisDataFromServer(showNotification = false, isBackground = false) {
+async function applyGisDeltaChanges(deltaData) {
+  let farmerChangesCount = 0
+  let trackChangesCount = 0
+
+  // 1. Handle Deleted Farmers
+  const deletedFarmers = (deltaData.deleted && Array.isArray(deltaData.deleted.farmers)) ? deltaData.deleted.farmers : []
+  for (const df of deletedFarmers) {
+    const id = df.id
+    const nameUpper = (df.name || '').trim().toUpperCase()
+    const idx = farmers.value.findIndex(f => (id && f.id === id) || (nameUpper && f.name && f.name.trim().toUpperCase() === nameUpper))
+    if (idx >= 0) {
+      const targetFarmer = farmers.value[idx]
+      removeFarmerMarker(targetFarmer)
+      farmers.value.splice(idx, 1)
+      farmerChangesCount++
+    }
+  }
+
+  // 2. Handle Deleted GPX Tracks
+  const deletedTracks = (deltaData.deleted && Array.isArray(deltaData.deleted.gpx_tracks)) ? deltaData.deleted.gpx_tracks : []
+  for (const dt of deletedTracks) {
+    const id = dt.id
+    const nameLower = (dt.name || '').trim().toLowerCase()
+    const idx = uploadedFiles.value.findIndex(t => (id && t.id === id) || (nameLower && t.name && t.name.trim().toLowerCase() === nameLower))
+    if (idx >= 0) {
+      const targetTrack = uploadedFiles.value[idx]
+      if (targetTrack.layer && gpxTracksLayerGroup) {
+        try { gpxTracksLayerGroup.removeLayer(targetTrack.layer) } catch (_) {}
+      }
+      if (gpxMarkersLayerGroup) {
+        if (targetTrack.startMarker) try { gpxMarkersLayerGroup.removeLayer(targetTrack.startMarker) } catch (_) {}
+        if (targetTrack.endMarker) try { gpxMarkersLayerGroup.removeLayer(targetTrack.endMarker) } catch (_) {}
+      }
+      uploadedFiles.value.splice(idx, 1)
+      trackChangesCount++
+    }
+  }
+
+  // 3. Upsert Updated / New Farmers
+  const incomingFarmers = Array.isArray(deltaData.farmers) ? deltaData.farmers : []
+  for (const serverFarmer of incomingFarmers) {
+    const nameUpper = (serverFarmer.name || '').trim().toUpperCase()
+    if (deletedFarmerNames.value.has(nameUpper)) continue
+
+    const idx = farmers.value.findIndex(f => (serverFarmer.id && f.id === serverFarmer.id) || (nameUpper && f.name && f.name.trim().toUpperCase() === nameUpper))
+    if (idx >= 0) {
+      const existing = farmers.value[idx]
+      removeFarmerMarker(existing)
+      farmers.value[idx] = { ...existing, ...serverFarmer }
+    } else {
+      farmers.value.push(serverFarmer)
+    }
+    // Re-add markers for this updated farmer's parcels
+    const current = farmers.value.find(f => (serverFarmer.id && f.id === serverFarmer.id) || (nameUpper && f.name && f.name.trim().toUpperCase() === nameUpper))
+    if (current && Array.isArray(current.parcels)) {
+      current.parcels.forEach((p, pIdx) => {
+        if (p.coords) {
+          const [lat, lng] = p.coords.split(',').map(Number)
+          if (!isNaN(lat) && !isNaN(lng)) {
+            addFarmerMarker(current, lat, lng, pIdx)
+          }
+        }
+      })
+    }
+    farmerChangesCount++
+  }
+
+  // 4. Upsert Updated / New GPX Tracks
+  const incomingTracks = Array.isArray(deltaData.gpx_tracks) ? deltaData.gpx_tracks : []
+  const colors = ['#2196F3', '#4CAF50', '#FF9800', '#9C27B0', '#F44336', '#00BCD4', '#795548', '#607D8B']
+
+  for (let i = 0; i < incomingTracks.length; i++) {
+    const track = incomingTracks[i]
+    if (!track) continue
+    const nameLower = (track.name || '').trim().toLowerCase()
+    if (deletedGpxNames.value.has(nameLower)) continue
+
+    const normPoints = (Array.isArray(track.points) && track.points.length > 0 && Array.isArray(track.points[0]))
+      ? track.points
+      : extractTrackPoints(track)
+    if (normPoints.length === 0) continue
+
+    const trackColor = track.color || colors[(uploadedFiles.value.length + i) % colors.length]
+    const center = normalizeTrackCenter(track.center, normPoints)
+    const isEnclosed = track.isEnclosed !== undefined ? Boolean(track.isEnclosed) : isTrackEnclosed(normPoints, 0.05)
+    const areaHa = Number(track.areaHectares || track.area_hectares || 0) || (calculatePolygonArea(normPoints) * 100)
+    const areaKm2 = Number(track.areaKm2 || track.area_km2 || 0) || (areaHa / 100)
+
+    let minLat = normPoints[0][0], maxLat = normPoints[0][0]
+    let minLng = normPoints[0][1], maxLng = normPoints[0][1]
+    for (let pIdx = 1; pIdx < normPoints.length; pIdx++) {
+      const p = normPoints[pIdx]
+      if (p[0] < minLat) minLat = p[0]
+      if (p[0] > maxLat) maxLat = p[0]
+      if (p[1] < minLng) minLng = p[1]
+      if (p[1] > maxLng) maxLng = p[1]
+    }
+
+    const trackObj = {
+      ...track,
+      name: track.name || `Track ${uploadedFiles.value.length + 1}`,
+      points: normPoints,
+      center,
+      bbox: [minLat, minLng, maxLat, maxLng],
+      color: trackColor,
+      areaHectares: areaHa,
+      areaKm2,
+      isEnclosed,
+      pointCount: normPoints.length,
+      visible: track.visible !== false,
+      layer: null,
+      startMarker: null,
+      endMarker: null
+    }
+
+    const idx = uploadedFiles.value.findIndex(t => (track.id && t.id === track.id) || (nameLower && t.name && t.name.trim().toLowerCase() === nameLower))
+    if (idx >= 0) {
+      const oldTrack = uploadedFiles.value[idx]
+      if (oldTrack.layer && gpxTracksLayerGroup) {
+        try { gpxTracksLayerGroup.removeLayer(oldTrack.layer) } catch (_) {}
+      }
+      if (gpxMarkersLayerGroup) {
+        if (oldTrack.startMarker) try { gpxMarkersLayerGroup.removeLayer(oldTrack.startMarker) } catch (_) {}
+        if (oldTrack.endMarker) try { gpxMarkersLayerGroup.removeLayer(oldTrack.endMarker) } catch (_) {}
+      }
+      uploadedFiles.value[idx] = trackObj
+    } else {
+      uploadedFiles.value.push(trackObj)
+    }
+    trackChangesCount++
+  }
+
+  // 5. Persist merged datasets and update viewport layers
+  if (farmerChangesCount > 0) {
+    farmersListRevision.value++
+    await persistFarmers()
+  }
+  if (trackChangesCount > 0) {
+    gpxListRevision.value++
+    updateVisibleGpxLayers()
+    await persistGpxTracks()
+  }
+
+  // 6. Update last synced timestamp
+  if (deltaData.server_time) {
+    lastSyncedTimestamp.value = deltaData.server_time
+    await saveGisStorageData(STORAGE_KEY_LAST_SYNCED, deltaData.server_time)
+  }
+
+  refreshAllMapPopups()
+  return { farmerChangesCount, trackChangesCount }
+}
+
+async function fetchGisDataFromServer(showNotification = false, isBackground = false, forceFull = false) {
   if (syncStatus.value === 'syncing' && !isInitialLoading.value) return
-  
+
   const hasLocalData = farmers.value.length > 0 || uploadedFiles.value.length > 0
   if (!isBackground) {
     syncStatus.value = 'syncing'
-    syncStatusText.value = 'Loading GIS data from server...'
+    syncStatusText.value = forceFull ? 'Downloading full GIS dataset...' : 'Syncing changes with server...'
     if (!hasLocalData) {
       isInitialLoading.value = true
       loadingMessage.value = 'Connecting to server & downloading GIS data...'
     }
   }
+
   try {
-    const data = await apiFetchAllGisData()
+    if (!lastSyncedTimestamp.value && !forceFull) {
+      lastSyncedTimestamp.value = await loadGisStorageData(STORAGE_KEY_LAST_SYNCED)
+    }
+
+    const sinceParam = forceFull || !hasLocalData ? null : lastSyncedTimestamp.value
+    const data = await apiFetchGisChanges(sinceParam)
+
     if (data.code === 200) {
-      const rawServerFarmers = Array.isArray(data.farmers) ? data.farmers : []
-      const rawServerTracks = Array.isArray(data.gpx_tracks) ? data.gpx_tracks : []
+      if (!data.is_delta || forceFull || !hasLocalData) {
+        // Full initial or forced baseline download
+        const rawServerFarmers = Array.isArray(data.farmers) ? data.farmers : []
+        const rawServerTracks = Array.isArray(data.gpx_tracks) ? data.gpx_tracks : []
 
-      const serverFarmers = rawServerFarmers.filter(f => !deletedFarmerNames.value.has((f.name || '').trim().toUpperCase()))
-      const serverTracks = rawServerTracks.filter(t => !deletedGpxNames.value.has((t.name || '').trim().toLowerCase()))
+        const serverFarmers = rawServerFarmers.filter(f => !deletedFarmerNames.value.has((f.name || '').trim().toUpperCase()))
+        const serverTracks = rawServerTracks.filter(t => !deletedGpxNames.value.has((t.name || '').trim().toLowerCase()))
 
-      // Quick fingerprint to skip re-render when server data matches local
-      const fp = list => {
-        if (!Array.isArray(list) || list.length === 0) return '0'
-        return `${list.length}:${(list[0].name || '')}:${(list[list.length - 1].name || '')}`
-      }
-      const farmersChanged = fp(serverFarmers) !== fp(farmers.value)
-      const tracksChanged = fp(serverTracks) !== fp(uploadedFiles.value)
-
-      if (farmersChanged) {
         if (!hasLocalData && isInitialLoading.value) {
-          loadingMessage.value = `Loading ${serverFarmers.length} farmer records from server...`
+          loadingMessage.value = `Loading ${serverFarmers.length} farmers & ${serverTracks.length} tracks...`
         }
+
         await renderFarmersData(serverFarmers)
         await saveGisStorageData(STORAGE_KEY_FARMERS, serverFarmers)
-      }
 
-      if (tracksChanged) {
-        if (!hasLocalData && isInitialLoading.value) {
-          loadingMessage.value = `Loading ${serverTracks.length} GPX tracks from server...`
-        }
         await renderGpxTracksData(serverTracks)
         await saveGisStorageData(STORAGE_KEY_GPX_TRACKS, serverTracks)
+
+        if (data.server_time) {
+          lastSyncedTimestamp.value = data.server_time
+          await saveGisStorageData(STORAGE_KEY_LAST_SYNCED, data.server_time)
+        }
+
+        refreshAllMapPopups()
+        if (showNotification) {
+          success(`Full GIS sync complete (${farmers.value.length} farmers, ${uploadedFiles.value.length} tracks)`)
+        }
+      } else {
+        // Incremental Delta Sync (Fast path)
+        const totalChanges = (data.count && data.count.total_changes !== undefined) ? data.count.total_changes : 0
+        const { farmerChangesCount, trackChangesCount } = await applyGisDeltaChanges(data)
+
+        if (showNotification) {
+          if (totalChanges === 0) {
+            info(`Already in sync with server (0 changes, ${farmers.value.length} farmers, ${uploadedFiles.value.length} tracks)`)
+          } else {
+            success(`Delta sync complete: updated ${farmerChangesCount} farmer(s), ${trackChangesCount} track(s)`)
+          }
+        }
       }
 
-      refreshAllMapPopups()
       if (!isBackground) {
         syncStatus.value = 'synced'
         syncStatusText.value = `In sync (${farmers.value.length} farmers, ${uploadedFiles.value.length} tracks)`
       }
       lastSyncTime.value = new Date().toLocaleTimeString()
-      if (showNotification) {
-        success(`Latest GIS data loaded (${farmers.value.length} farmers, ${uploadedFiles.value.length} tracks)`)
-      }
     }
   } catch (err) {
     if (!isBackground) {
