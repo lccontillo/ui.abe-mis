@@ -411,8 +411,13 @@
                   <Location20 class="item-inline-icon" /> {{ resolveFarmerBarangay(farmer) }}
                 </div>
                 <div class="farmer-badges-row">
-                  <span class="commodity-tag" :class="'commodity-' + (farmer.commodity || 'other').toLowerCase()">
-                    {{ farmer.commodity || '—' }}
+                  <span
+                    v-for="comm in resolveFarmerCommodities(farmer)"
+                    :key="comm"
+                    class="commodity-tag"
+                    :class="'commodity-' + (comm || 'other').toLowerCase()"
+                  >
+                    {{ comm }}
                   </span>
                   <span class="badge badge-neutral">
                     {{ farmer.parcels ? farmer.parcels.length : 1 }} parcel(s)
@@ -579,7 +584,37 @@
           >
             <Location20 />
           </button>
+          <button 
+            type="button" 
+            class="map-tool-btn" 
+            :class="{ active: commodityPolygonsVisible, loading: isCommodityLoading }" 
+            :title="isCommodityLoading ? 'Loading Commodity Polygons...' : (commodityPolygonsVisible ? 'Hide Rice & Corn Polygons' : 'Show Rice & Corn Polygons (Commodity Types)')" 
+            @click="toggleCommodityPolygons"
+          >
+            <Time20 v-if="isCommodityLoading" class="rotating-icon" />
+            <Wheat20 v-else />
+          </button>
         </div>
+
+        <!-- Floating Commodity Map Legend -->
+        <!-- <Transition name="fade-loading">
+          <div v-if="commodityPolygonsVisible" class="map-floating-legend">
+            <div class="legend-header">
+              <span class="legend-title"><Wheat20 class="legend-header-icon" /> Commodity Layer</span>
+              <span class="legend-count">{{ commodityFeaturesCount }} types</span>
+            </div>
+            <div class="legend-items">
+              <div class="legend-item" title="Corn commodity polygons (EPSG:32651 converted)">
+                <span class="legend-color-box legend-color-corn"></span>
+                <span class="legend-label">Corn</span>
+              </div>
+              <div class="legend-item" title="Rice commodity polygons (EPSG:32651 converted)">
+                <span class="legend-color-box legend-color-rice"></span>
+                <span class="legend-label">Rice</span>
+              </div>
+            </div>
+          </div>
+        </Transition> -->
 
         <!-- Bottom Map Status Bar -->
         <div class="map-status-pill">
@@ -589,6 +624,9 @@
           <span><Document20 class="item-inline-icon" /> {{ uploadedFiles.length }} GPX</span>
           <span v-if="boundaryVisible" class="boundary-indicator" title="Alcala Municipal Boundary Layer Loaded">
             <MapBoundary20 class="item-inline-icon" /> Boundary Active
+          </span>
+          <span v-if="commodityPolygonsVisible" class="commodity-indicator" title="Rice & Corn Commodity Layer Active">
+            <Wheat20 class="item-inline-icon" /> Commodity Layer
           </span>
           <span v-if="!parcelPolygonsVisible" class="muted-indicator" title="Parcel Polygons are hidden">
             Parcels: Hidden
@@ -653,7 +691,18 @@
               <tr><th>Barangay</th><td>{{ resolveFarmerBarangay(searchInfoItem.data) }}</td></tr>
               <tr>
                 <th>Commodity</th>
-                <td>{{ searchInfoItem.data.commodity || '—' }}</td>
+                <td>
+                  <div style="display:flex; flex-wrap:wrap; gap:4px;">
+                    <span 
+                      v-for="comm in resolveFarmerCommodities(searchInfoItem.data)" 
+                      :key="comm"
+                      class="commodity-tag"
+                      :class="'commodity-' + (comm || 'other').toLowerCase()"
+                    >
+                      {{ comm }}
+                    </span>
+                  </div>
+                </td>
               </tr>
               <tr><th>Total Area</th><td class="font-mono">{{ fmt4(searchInfoItem.data.area) }} ha</td></tr>
               <tr v-if="searchInfoItem.gpx || searchInfoItem.data.gpxFile">
@@ -664,8 +713,18 @@
               <tr v-if="searchInfoItem.data.parcels && searchInfoItem.data.parcels.length > 0">
                 <td colspan="2">
                   <div class="parcel-subtable">
-                    <div v-for="(p, i) in searchInfoItem.data.parcels" :key="i" class="parcel-sub-row font-mono">
-                      <strong>#{{ i + 1 }}</strong> · {{ fmt4(p.area) }} ha · {{ p.coords || 'no coords' }}
+                    <div v-for="(p, i) in searchInfoItem.data.parcels" :key="i" class="parcel-sub-row font-mono" style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
+                      <div>
+                        <strong>#{{ i + 1 }}</strong> · {{ fmt4(p.area) }} ha · {{ p.coords || 'no coords' }}
+                      </div>
+                      <span 
+                        v-if="p.commodity || (p.coords && getCommodityFromCoordinates(Number(p.coords.split(',')[0]), Number(p.coords.split(',')[1])))" 
+                        class="commodity-tag"
+                        :class="'commodity-' + ((p.commodity || getCommodityFromCoordinates(Number(p.coords.split(',')[0]), Number(p.coords.split(',')[1]))) || 'other').toLowerCase()"
+                        style="font-size:10px;padding:1px 6px;"
+                      >
+                        {{ p.commodity || getCommodityFromCoordinates(Number(p.coords.split(',')[0]), Number(p.coords.split(',')[1])) }}
+                      </span>
                     </div>
                   </div>
                 </td>
@@ -853,6 +912,7 @@ import {
   ErrorFilled20,
   Time20,
   WarningFilled20,
+  Wheat20,
 } from '@carbon/icons-vue'
 import { useToast } from '@/composables/useToast'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
@@ -929,6 +989,125 @@ function getBarangayFromCoordinates(lat, lng) {
     }
   }
   return null
+}
+
+// Spatial Index and Commodity matching for Rice and Corn polygons
+let commoditySpatialIndex = null
+let isBuildingCommodityIndex = false
+
+function buildCommoditySpatialIndex(geojson) {
+  if (!geojson || !Array.isArray(geojson.features)) return []
+  const rings = []
+  
+  function processPolygon(polyCoords, comm) {
+    if (!polyCoords || !polyCoords[0]) return
+    const exterior = polyCoords[0]
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+    for (let i = 0; i < exterior.length; i++) {
+      const pt = exterior[i]
+      const x = pt[0], y = pt[1]
+      if (x < minX) minX = x
+      if (x > maxX) maxX = x
+      if (y < minY) minY = y
+      if (y > maxY) maxY = y
+    }
+    rings.push({ bbox: [minX, minY, maxX, maxY], ring: exterior, commodity: comm })
+  }
+
+  for (const f of geojson.features) {
+    const comm = f.properties && f.properties.Commodity
+    if (!comm || !f.geometry || !f.geometry.coordinates) continue
+    const geomType = f.geometry.type
+    if (geomType === 'Polygon') {
+      processPolygon(f.geometry.coordinates, comm)
+    } else if (geomType === 'MultiPolygon') {
+      for (const poly of f.geometry.coordinates) {
+        processPolygon(poly, comm)
+      }
+    }
+  }
+  return rings
+}
+
+async function ensureCommoditySpatialIndex() {
+  if (commoditySpatialIndex) return commoditySpatialIndex
+  if (isBuildingCommodityIndex) {
+    while (isBuildingCommodityIndex) {
+      await new Promise(r => setTimeout(r, 50))
+    }
+    return commoditySpatialIndex
+  }
+  isBuildingCommodityIndex = true
+  try {
+    const geojson = await loadCommodityGeoJson()
+    commoditySpatialIndex = buildCommoditySpatialIndex(geojson)
+  } catch (err) {
+    console.warn('Could not build commodity spatial index:', err)
+  } finally {
+    isBuildingCommodityIndex = false
+  }
+  return commoditySpatialIndex
+}
+
+// Find commodity (e.g. Rice or Corn) from point coordinates [lat, lng]
+function getCommodityFromCoordinates(lat, lng) {
+  if (!commoditySpatialIndex || lat == null || lng == null) return null
+  const numLat = Number(lat)
+  const numLng = Number(lng)
+  if (isNaN(numLat) || isNaN(numLng)) return null
+  const pt = [numLng, numLat] // [lng, lat]
+
+  for (let i = 0; i < commoditySpatialIndex.length; i++) {
+    const entry = commoditySpatialIndex[i]
+    const b = entry.bbox
+    if (pt[0] < b[0] || pt[0] > b[2] || pt[1] < b[1] || pt[1] > b[3]) continue
+    if (isPointInPolygon(pt, entry.ring)) {
+      return entry.commodity
+    }
+  }
+  return null
+}
+
+// Resolve list of commodity types for a farmer based on their parcel coordinates
+function resolveFarmerCommodities(farmer) {
+  if (!farmer) return ['Rice']
+  const matched = new Set()
+
+  if (Array.isArray(farmer.parcels) && farmer.parcels.length > 0) {
+    for (const p of farmer.parcels) {
+      if (p.commodity) {
+        matched.add(p.commodity)
+      } else if (p.coords) {
+        const [lat, lng] = p.coords.split(',').map(Number)
+        const comm = getCommodityFromCoordinates(lat, lng)
+        if (comm) {
+          p.commodity = comm
+          matched.add(comm)
+        }
+      }
+    }
+  }
+
+  if (matched.size === 0 && farmer.coords) {
+    const [lat, lng] = farmer.coords.split(',').map(Number)
+    const comm = getCommodityFromCoordinates(lat, lng)
+    if (comm) matched.add(comm)
+  }
+
+  if (matched.size === 0) {
+    if (farmer.commodity) {
+      const parts = String(farmer.commodity).split(/[,;/]+/).map(s => s.trim()).filter(Boolean)
+      if (parts.length > 0) {
+        parts.forEach(c => matched.add(c))
+      } else {
+        matched.add(farmer.commodity)
+      }
+    } else {
+      matched.add('Rice')
+    }
+  }
+
+  return Array.from(matched)
 }
 
 function resolveFarmerBarangay(farmer) {
@@ -1053,6 +1232,12 @@ const gpxMarkersVisible = ref(false)
 
 const boundaryVisible = ref(true)
 let boundaryLayer = null
+
+const commodityPolygonsVisible = ref(false)
+const isCommodityLoading = ref(false)
+const commodityFeaturesCount = ref(2)
+let commodityLayer = null
+let commodityGeoJsonCache = null
 
 const farmerMarkers = []
 
@@ -1430,8 +1615,11 @@ const filteredFarmers = computed(() => {
   const targetComm = commodityFilter.value
 
   const list = farmers.value.filter(f => {
-    // 1. Commodity filter
-    const matchCommodity = targetComm === 'All' || f.commodity === targetComm
+    // 1. Commodity filter (checks all resolved commodities across farmer's parcels)
+    const farmerComms = resolveFarmerCommodities(f)
+    const matchCommodity = targetComm === 'All' || 
+      farmerComms.some(c => c.toLowerCase() === targetComm.toLowerCase()) || 
+      (f.commodity && f.commodity.toLowerCase().includes(targetComm.toLowerCase()))
 
     // 2. Location filter
     const fBrgy = resolveFarmerBarangay(f).trim().toUpperCase()
@@ -1444,12 +1632,14 @@ const filteredFarmers = computed(() => {
       const address = (f.address || '').toLowerCase()
       const location = (f.location || '').toLowerCase()
       const commodity = (f.commodity || '').toLowerCase()
+      const commsStr = farmerComms.join(' ').toLowerCase()
       const brgy = fBrgy.toLowerCase()
       const parcelCoords = (f.parcels || []).map(p => p.coords || '').join(' ').toLowerCase()
       matchQuery = name.includes(query) || 
                    address.includes(query) || 
                    location.includes(query) || 
                    commodity.includes(query) || 
+                   commsStr.includes(query) ||
                    brgy.includes(query) ||
                    parcelCoords.includes(query)
     }
@@ -1656,6 +1846,13 @@ function buildFarmerPopupHtml(farmer, parcelIndex = 0, lat = 0, lng = 0) {
     farmer.parcels.forEach((p, i) => {
       const pColor = parcelColors[i % parcelColors.length]
       const active = i === parcelIndex ? 'font-weight:bold;' : ''
+      let pComm = p.commodity
+      if (!pComm && p.coords) {
+        const [pLat, pLng] = p.coords.split(',').map(Number)
+        pComm = getCommodityFromCoordinates(pLat, pLng)
+      }
+      const commBadge = pComm ? ` · <span style="font-weight:600;color:${pComm.toLowerCase() === 'corn' ? '#d97706' : '#059669'};">${escapeHtml(pComm)}</span>` : ''
+
       parcelsHtml += `
         <div 
           class="popup-parcel-row"
@@ -1664,7 +1861,7 @@ function buildFarmerPopupHtml(farmer, parcelIndex = 0, lat = 0, lng = 0) {
           onclick="window.jumpToParcelByPopup('${safeName}', ${i})"
         >
           <span style="display:inline-block;width:16px;height:16px;border-radius:50%;background:${pColor};color:white;font-size:10px;text-align:center;line-height:16px;margin-right:6px;flex-shrink:0;">${i + 1}</span>
-          <span style="text-decoration:underline; text-underline-offset:2px;">${(p.area != null ? Number(p.area).toFixed(4) : '—')} ha — ${p.coords || 'no coords'}</span>
+          <span style="text-decoration:underline; text-underline-offset:2px;">${(p.area != null ? Number(p.area).toFixed(4) : '—')} ha${commBadge} — ${p.coords || 'no coords'}</span>
           ${i === parcelIndex ? '<span style="margin-left:4px; color:#2e7d32;">◀</span>' : ''}
         </div>
       `
@@ -1679,6 +1876,7 @@ function buildFarmerPopupHtml(farmer, parcelIndex = 0, lat = 0, lng = 0) {
   const latVal = typeof lat === 'number' ? lat.toFixed(5) : lat
   const lngVal = typeof lng === 'number' ? lng.toFixed(5) : lng
   const addressHtml = farmer.address ? `<p style="margin:2px 0;font-size:12px;color:#444;"><strong>Address:</strong> ${escapeHtml(farmer.address)}</p>` : ''
+  const allComms = resolveFarmerCommodities(farmer).join(', ')
 
   return `
     <div style="min-width:240px; font-family: inherit; font-size: 13px;">
@@ -1689,7 +1887,7 @@ function buildFarmerPopupHtml(farmer, parcelIndex = 0, lat = 0, lng = 0) {
         </button>
       </div>
       ${addressHtml}
-      <p style="margin:2px 0;font-size:12px;color:#444;"><strong>Barangay:</strong> ${escapeHtml(resolveFarmerBarangay(farmer))} · ${escapeHtml(farmer.commodity || '—')}</p>
+      <p style="margin:2px 0;font-size:12px;color:#444;"><strong>Barangay:</strong> ${escapeHtml(resolveFarmerBarangay(farmer))} · <strong>Commodity:</strong> ${escapeHtml(allComms || '—')}</p>
       <p style="margin:2px 0;font-size:12px;color:#222;"><strong>Total Area:</strong> ${totalArea.toFixed(4)} ha (${farmer.parcels ? farmer.parcels.length : 1} parcel(s))</p>
       ${parcelsHtml}
       <div style="margin-top:6px; padding-top:6px; border-top:1px solid #eee; font-size:11px; color:#777;">
@@ -1945,10 +2143,18 @@ async function renderFarmersData(farmersList) {
         if (p.coords) {
           const [lat, lng] = p.coords.split(',').map(Number)
           if (!isNaN(lat) && !isNaN(lng)) {
+            if (!p.commodity) {
+              const matchedComm = getCommodityFromCoordinates(lat, lng)
+              if (matchedComm) p.commodity = matchedComm
+            }
             addFarmerMarker(f, lat, lng, idx)
           }
         }
       })
+      const resolvedComms = resolveFarmerCommodities(f)
+      if (resolvedComms.length > 0) {
+        f.commodity = resolvedComms[0]
+      }
     }
     // Yield to main thread between chunks so the browser stays responsive
     if (i + CHUNK < total) {
@@ -1985,10 +2191,18 @@ async function loadSampleData() {
         if (p.coords) {
           const [lat, lng] = p.coords.split(',').map(Number)
           if (!isNaN(lat) && !isNaN(lng)) {
+            if (!p.commodity) {
+              const matchedComm = getCommodityFromCoordinates(lat, lng)
+              if (matchedComm) p.commodity = matchedComm
+            }
             addFarmerMarker(f, lat, lng, idx)
           }
         }
       })
+      const resolvedComms = resolveFarmerCommodities(f)
+      if (resolvedComms.length > 0) {
+        f.commodity = resolvedComms[0]
+      }
     }
     // Yield to main thread between chunks so the browser stays responsive
     if (i + CHUNK < total) {
@@ -2215,7 +2429,8 @@ function searchFarm() {
   farmers.value.forEach(f => {
     const name = (f.name || '').trim().toUpperCase()
     const location = resolveFarmerBarangay(f)
-    const commodity = f.commodity || 'Rice'
+    const commsList = resolveFarmerCommodities(f)
+    const commodity = commsList.join(', ') || f.commodity || 'Rice'
 
     if (loc !== 'All' && !location.toUpperCase().includes(loc.toUpperCase()) && !(f.location && f.location.toUpperCase().includes(loc.toUpperCase()))) {
       return
@@ -2224,7 +2439,7 @@ function searchFarm() {
     if (q) {
       const matchName = name.toLowerCase().includes(q)
       const matchLoc = location.toLowerCase().includes(q) || (f.location && f.location.toLowerCase().includes(q))
-      const matchCrop = commodity.toLowerCase().includes(q)
+      const matchCrop = commodity.toLowerCase().includes(q) || commsList.some(c => c.toLowerCase().includes(q))
       if (!matchName && !matchLoc && !matchCrop) return
     }
 
@@ -2240,6 +2455,7 @@ function searchFarm() {
       name,
       location,
       commodity,
+      commodities: commsList,
       derivedName: name,
       area: totalArea,
       parcels: f.parcels || [],
@@ -4310,6 +4526,19 @@ async function saveFarmerEdit() {
       }
       if (updated.parcels && updated.parcels.length > 0) {
         updated.area = updated.parcels.reduce((sum, p) => sum + (Number(p.area) || 0), 0)
+        updated.parcels.forEach(p => {
+          if (p.coords) {
+            const [lat, lng] = p.coords.split(',').map(Number)
+            if (!isNaN(lat) && !isNaN(lng)) {
+              const matchedComm = getCommodityFromCoordinates(lat, lng)
+              if (matchedComm) p.commodity = matchedComm
+            }
+          }
+        })
+        const resolvedComms = resolveFarmerCommodities(updated)
+        if (resolvedComms.length > 0) {
+          updated.commodity = resolvedComms[0]
+        }
       }
       await unmarkFarmerDeleted(updated.name)
       if (oldFarmer.name && oldFarmer.name.trim().toUpperCase() !== updated.name) {
@@ -4562,6 +4791,146 @@ function toggleBoundaryLayer() {
     }
     info('Alcala Boundary layer hidden')
     setStatus('Alcala boundary layer hidden', 'info')
+  }
+}
+
+// Commodity Type Polygons (Rice & Corn)
+async function loadCommodityGeoJson() {
+  if (commodityGeoJsonCache) return commodityGeoJsonCache
+
+  try {
+    const res = await import('@/assets/Riceandcorncommodity_wgs84.json')
+    commodityGeoJsonCache = res.default || res
+    return commodityGeoJsonCache
+  } catch (err) {
+    console.warn('Direct WGS84 commodity JSON load failed, falling back to dynamic conversion:', err)
+  }
+
+  // Fallback: Dynamically import and convert from EPSG:32651
+  const rawMod = await import('@/assets/Riceandcorncommodity.json')
+  const raw = rawMod.default || rawMod
+  const convertedFeatures = (raw.features || []).map(f => ({
+    type: 'Feature',
+    id: f.id,
+    properties: f.properties,
+    geometry: {
+      type: f.geometry.type,
+      coordinates: convertUtmCoords(f.geometry.coordinates)
+    }
+  }))
+
+  commodityGeoJsonCache = {
+    type: 'FeatureCollection',
+    features: convertedFeatures
+  }
+  return commodityGeoJsonCache
+}
+
+async function initCommodityLayer() {
+  if (!map) return
+
+  if (commodityLayer) {
+    if (map.hasLayer(commodityLayer)) map.removeLayer(commodityLayer)
+    commodityLayer = null
+  }
+
+  isCommodityLoading.value = true
+  setStatus('Loading Rice & Corn commodity polygons...', 'info')
+
+  try {
+    const geojson = await loadCommodityGeoJson()
+    if (!geojson || !geojson.features) {
+      warning('Failed to parse commodity features data.')
+      return
+    }
+
+    commodityFeaturesCount.value = geojson.features.length
+
+    commodityLayer = L.geoJSON(geojson, {
+      style: (feature) => {
+        const commodity = (feature && feature.properties && feature.properties.Commodity) || ''
+        const isRice = commodity.toLowerCase() === 'rice'
+        const isCorn = commodity.toLowerCase() === 'corn'
+
+        return {
+          color: isRice ? '#059669' : isCorn ? '#d97706' : '#2563eb',
+          weight: 1.5,
+          opacity: 0.9,
+          fillColor: isRice ? '#10b981' : isCorn ? '#f59e0b' : '#3b82f6',
+          fillOpacity: 0.45
+        }
+      },
+      onEachFeature: (feature, layer) => {
+        const props = feature.properties || {}
+        const commodityName = props.Commodity || 'Crop'
+        const fid = props.FID !== undefined ? props.FID : (feature.id || '—')
+        const isRice = commodityName.toLowerCase() === 'rice'
+        const badgeColor = isRice ? '#059669' : '#d97706'
+        const icon = isRice ? '🌾' : '🌽'
+
+        layer.bindTooltip(`
+          <div style="font-weight:700;font-size:12px;color:${badgeColor};display:flex;align-items:center;gap:4px;">
+            <span>${icon}</span>
+            <span>Commodity: ${escapeHtml(commodityName)}</span>
+          </div>
+          <div style="font-size:10.5px;color:#4b5563;margin-top:2px;">
+            Feature ID: ${escapeHtml(String(fid))}
+          </div>
+        `, {
+          sticky: true,
+          direction: 'top',
+          className: 'commodity-map-tooltip'
+        })
+
+        layer.on('mouseover', () => {
+          layer.setStyle({
+            weight: 2.5,
+            fillOpacity: 0.68
+          })
+        })
+
+        layer.on('mouseout', () => {
+          const isRiceItem = (props.Commodity || '').toLowerCase() === 'rice'
+          layer.setStyle({
+            weight: 1.5,
+            fillOpacity: 0.45,
+            color: isRiceItem ? '#059669' : '#d97706'
+          })
+        })
+      }
+    })
+
+    if (commodityPolygonsVisible.value) {
+      commodityLayer.addTo(map)
+    }
+  } catch (err) {
+    console.error('Error loading commodity layer:', err)
+    warning('Failed to render commodity layer')
+  } finally {
+    isCommodityLoading.value = false
+  }
+}
+
+async function toggleCommodityPolygons() {
+  if (isCommodityLoading.value) return
+  commodityPolygonsVisible.value = !commodityPolygonsVisible.value
+
+  if (!map) return
+
+  if (commodityPolygonsVisible.value) {
+    if (!commodityLayer) {
+      await initCommodityLayer()
+    } else if (!map.hasLayer(commodityLayer)) {
+      commodityLayer.addTo(map)
+    }
+    info('🌾 Rice & Corn commodity polygons enabled')
+    setStatus('Rice & Corn commodity layer visible', 'info')
+  } else {
+    if (commodityLayer && map.hasLayer(commodityLayer)) {
+      map.removeLayer(commodityLayer)
+    }
+    info('Rice & Corn commodity polygons hidden')
+    setStatus('Commodity polygons hidden', 'info')
   }
 }
 
@@ -5222,6 +5591,9 @@ onMounted(async () => {
     initMap()
     await loadDeletedKeys()
 
+    // Preload commodity spatial index so parcel coordinates match Rice/Corn immediately
+    ensureCommoditySpatialIndex().catch(err => console.warn('Commodity index init error:', err))
+
     loadingMessage.value = 'Loading farmer records...'
     await loadSampleData()
 
@@ -5262,6 +5634,10 @@ onBeforeUnmount(() => {
   if (boundaryLayer && map) {
     map.removeLayer(boundaryLayer)
     boundaryLayer = null
+  }
+  if (commodityLayer && map) {
+    map.removeLayer(commodityLayer)
+    commodityLayer = null
   }
   if (map) {
     map.remove()
@@ -6210,6 +6586,99 @@ select.field-control-sm {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
+}
+
+.commodity-indicator {
+  color: #d97706;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.commodity-tool-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+/* Floating Commodity Legend */
+.map-floating-legend {
+  position: absolute;
+  top: 92px;
+  left: 14px;
+  z-index: 400;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 8px);
+  padding: 8px 12px;
+  box-shadow: var(--shadow-md);
+  min-width: 140px;
+  pointer-events: auto;
+}
+
+.legend-header-icon {
+  width: 14px;
+  height: 14px;
+  vertical-align: -2px;
+  color: #d97706;
+}
+
+.legend-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+  gap: 8px;
+}
+
+.legend-title {
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--heading, #0f172a);
+}
+
+.legend-count {
+  font-size: 0.68rem;
+  font-family: var(--font-mono, monospace);
+  color: var(--text-muted);
+}
+
+.legend-items {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.74rem;
+  color: var(--text);
+}
+
+.legend-color-box {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+}
+
+.legend-color-corn {
+  background: #f59e0b;
+  border-color: #d97706;
+}
+
+.legend-color-rice {
+  background: #10b981;
+  border-color: #059669;
+}
+
+.legend-label {
+  font-weight: 600;
 }
 
 /* App Status Bar */
