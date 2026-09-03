@@ -1102,9 +1102,9 @@ const openGisIDB = () => {
   })
 }
 
-const setGisIDB = async (key, val) => {
+const setGisIDB = async (key, val, alreadyClean = false) => {
   try {
-    const cleanVal = toCleanJson(val)
+    const cleanVal = alreadyClean ? val : toCleanJson(val)
     if (cleanVal === null || cleanVal === undefined) return false
 
     const db = await openGisIDB()
@@ -1166,15 +1166,27 @@ const getGisIDB = async (key) => {
 }
 
 async function saveGisStorageData(key, data) {
-  const cleanData = toCleanJson(data)
+  if (data === null || data === undefined) return
+  // For large array datasets (GPX tracks), skip the expensive toCleanJson
+  // (JSON.parse(JSON.stringify()) on 40MB+ crashes) and write directly to IDB.
+  // Also skip localStorage entirely for large arrays (5MB quota limit).
+  const isLargeArray = Array.isArray(data) && data.length > 500
+  const cleanData = isLargeArray ? data : toCleanJson(data)
   if (cleanData === null || cleanData === undefined) return
-  await setGisIDB(key, cleanData)
-  try {
-    localStorage.setItem(key, JSON.stringify(cleanData))
-  } catch (e) {
+
+  // Write to IndexedDB (pass alreadyClean flag to avoid double-cleaning)
+  await setGisIDB(key, cleanData, isLargeArray)
+
+  // Only write to localStorage for small datasets (sync timestamp, small lists)
+  // GPX tracks and large farmer lists exceed the 5MB localStorage quota
+  if (!isLargeArray) {
     try {
-      localStorage.removeItem(key)
-    } catch (_) {}
+      localStorage.setItem(key, JSON.stringify(cleanData))
+    } catch (e) {
+      try {
+        localStorage.removeItem(key)
+      } catch (_) {}
+    }
   }
 }
 
@@ -3047,50 +3059,58 @@ async function renderGpxTracksData(tracksList, syncToServer = false) {
   const filteredList = tracksList.filter(t => t && !deletedGpxNames.value.has((t.name || '').trim().toLowerCase()))
 
   const newFiles = []
-  const CHUNK = 25
+  let skippedCount = 0
+  const CHUNK = 200
   for (let i = 0; i < filteredList.length; i += CHUNK) {
     const end = Math.min(i + CHUNK, filteredList.length)
     for (let j = i; j < end; j++) {
-      const track = filteredList[j]
-      if (!track) continue
-      // Skip expensive re-extraction when points are already normalized [lat, lng] arrays
-      const normPoints = (Array.isArray(track.points) && track.points.length > 0 && Array.isArray(track.points[0]))
-        ? track.points
-        : extractTrackPoints(track)
-      if (normPoints.length === 0) continue
+      try {
+        const track = filteredList[j]
+        if (!track) continue
+        // Skip expensive re-extraction when points are already normalized [lat, lng] arrays
+        const normPoints = (Array.isArray(track.points) && track.points.length > 0 && Array.isArray(track.points[0]))
+          ? track.points
+          : extractTrackPoints(track)
+        if (normPoints.length === 0) continue
 
-      const trackColor = track.color || colors[j % colors.length]
-      const center = normalizeTrackCenter(track.center, normPoints)
-      const isEnclosed = track.isEnclosed !== undefined ? Boolean(track.isEnclosed) : isTrackEnclosed(normPoints, 0.05)
-      const areaHa = Number(track.areaHectares || track.area_hectares || 0) || (calculatePolygonArea(normPoints) * 100)
-      const areaKm2 = Number(track.areaKm2 || track.area_km2 || 0) || (areaHa / 100)
+        const trackColor = track.color || colors[j % colors.length]
+        const center = normalizeTrackCenter(track.center, normPoints)
+        const isEnclosed = track.isEnclosed !== undefined ? Boolean(track.isEnclosed) : isTrackEnclosed(normPoints, 0.05)
+        const areaHa = Number(track.areaHectares || track.area_hectares || 0) || (calculatePolygonArea(normPoints) * 100)
+        const areaKm2 = Number(track.areaKm2 || track.area_km2 || 0) || (areaHa / 100)
 
-      let minLat = normPoints[0][0], maxLat = normPoints[0][0]
-      let minLng = normPoints[0][1], maxLng = normPoints[0][1]
-      for (let pIdx = 1; pIdx < normPoints.length; pIdx++) {
-        const p = normPoints[pIdx]
-        if (p[0] < minLat) minLat = p[0]
-        if (p[0] > maxLat) maxLat = p[0]
-        if (p[1] < minLng) minLng = p[1]
-        if (p[1] > maxLng) maxLng = p[1]
+        let minLat = normPoints[0][0], maxLat = normPoints[0][0]
+        let minLng = normPoints[0][1], maxLng = normPoints[0][1]
+        for (let pIdx = 1; pIdx < normPoints.length; pIdx++) {
+          const p = normPoints[pIdx]
+          if (p[0] < minLat) minLat = p[0]
+          if (p[0] > maxLat) maxLat = p[0]
+          if (p[1] < minLng) minLng = p[1]
+          if (p[1] > maxLng) maxLng = p[1]
+        }
+
+        newFiles.push({
+          ...track,
+          name: track.name || `Track ${j + 1}`,
+          points: normPoints,
+          center,
+          bbox: [minLat, minLng, maxLat, maxLng],
+          color: trackColor,
+          areaHectares: areaHa,
+          areaKm2,
+          isEnclosed,
+          pointCount: normPoints.length,
+          visible: track.visible !== false,
+          layer: null,
+          startMarker: null,
+          endMarker: null
+        })
+      } catch (trackErr) {
+        skippedCount++
+        if (skippedCount <= 5) {
+          console.warn(`[GIS] Skipped corrupt track at index ${j}:`, trackErr)
+        }
       }
-
-      newFiles.push({
-        ...track,
-        name: track.name || `Track ${j + 1}`,
-        points: normPoints,
-        center,
-        bbox: [minLat, minLng, maxLat, maxLng],
-        color: trackColor,
-        areaHectares: areaHa,
-        areaKm2,
-        isEnclosed,
-        pointCount: normPoints.length,
-        visible: track.visible !== false,
-        layer: null,
-        startMarker: null,
-        endMarker: null
-      })
     }
     // Yield to main thread between chunks so the browser stays responsive
     if (i + CHUNK < filteredList.length) {
@@ -3100,6 +3120,11 @@ async function renderGpxTracksData(tracksList, syncToServer = false) {
       await new Promise(r => setTimeout(r, 0))
     }
   }
+
+  if (skippedCount > 0) {
+    console.warn(`[GIS] Skipped ${skippedCount} corrupt tracks out of ${filteredList.length}`)
+  }
+  console.log(`[GIS] renderGpxTracksData complete: ${newFiles.length} tracks rendered`)
 
   uploadedFiles.value = newFiles
   updateVisibleGpxLayers()
@@ -5057,11 +5082,25 @@ async function fetchGisDataFromServer(showNotification = false, isBackground = f
           loadingMessage.value = `Loading ${serverFarmers.length} farmers & ${serverTracks.length} tracks...`
         }
 
-        await renderFarmersData(serverFarmers)
-        await saveGisStorageData(STORAGE_KEY_FARMERS, serverFarmers)
+        console.log(`[GIS] Full sync received: ${serverFarmers.length} farmers, ${serverTracks.length} tracks`)
 
-        await renderGpxTracksData(serverTracks)
-        await saveGisStorageData(STORAGE_KEY_GPX_TRACKS, serverTracks)
+        // Process farmers independently so a failure doesn't block tracks
+        try {
+          await renderFarmersData(serverFarmers)
+          await saveGisStorageData(STORAGE_KEY_FARMERS, serverFarmers)
+          console.log(`[GIS] Farmers rendered & saved: ${farmers.value.length}`)
+        } catch (farmerErr) {
+          console.error('[GIS] Error rendering/saving farmers:', farmerErr)
+        }
+
+        // Process tracks independently so a failure doesn't block farmers
+        try {
+          await renderGpxTracksData(serverTracks)
+          await saveGisStorageData(STORAGE_KEY_GPX_TRACKS, serverTracks)
+          console.log(`[GIS] Tracks rendered & saved: ${uploadedFiles.value.length}`)
+        } catch (trackErr) {
+          console.error('[GIS] Error rendering/saving GPX tracks:', trackErr)
+        }
 
         if (data.server_time) {
           lastSyncedTimestamp.value = data.server_time
