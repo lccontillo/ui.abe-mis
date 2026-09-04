@@ -229,10 +229,10 @@
                     <button type="button" class="btn btn-sm btn-secondary" @click="hideAllFiles" title="Hide all from map">
                       <ViewOff20 class="btn-icon" />
                     </button>
-  
+<!--   
                     <button type="button" class="btn btn-sm btn-danger" @click="removeAllFiles" title="Clear list">
                       <TrashCan16 />
-                    </button>
+                    </button> -->
 
                     <button 
                       type="button" 
@@ -508,10 +508,26 @@
                 <DocumentExport20 class="btn-icon" />
                 <span>Export Farmers (JSON)</span>
               </button>
-              <button type="button" class="btn btn-secondary btn-sm btn-block" @click="exportDuplicateParcelsCSV">
-                <DocumentExport20 class="btn-icon" />
-                <span>Export Duplicate Parcels (CSV)</span>
-              </button>
+              <div class="overlap-export-box">
+                <div class="overlap-threshold-row">
+                  <label class="field-label-xs">Detection Mode:</label>
+                  <select v-model.number="overlapScanThreshold" class="field-control-xs" :disabled="isGeneratingOverlapReport">
+                    <option :value="30">⚡ Duplicates & Major (≥30%)</option>
+                    <option :value="90">🎯 Strict Duplicates (≥90%)</option>
+                    <option :value="1">🔍 All Overlaps (≥1%)</option>
+                  </select>
+                </div>
+                <button 
+                  type="button" 
+                  class="btn btn-secondary btn-sm btn-block" 
+                  :disabled="isGeneratingOverlapReport || uploadedFiles.length < 2" 
+                  :title="uploadedFiles.length < 2 ? 'At least 2 GPX tracks are required to analyze overlaps' : 'Analyze and export overlapping GPX tracks report'"
+                  @click="exportOverlapReportCSV"
+                >
+                  <DocumentExport20 class="btn-icon" />
+                  <span>{{ isGeneratingOverlapReport ? `Analyzing Overlaps (${overlapProgress}%)...` : 'Export Duplicate / Overlap Report (CSV)' }}</span>
+                </button>
+              </div>
               <button type="button" class="btn btn-secondary btn-sm btn-block" :disabled="uploadedFiles.length === 0" @click="exportGPX">
                 <Earth20 class="btn-icon" />
                 <span>Export All GPX Tracks ({{ uploadedFiles.length }})</span>
@@ -881,6 +897,46 @@
         </div>
       </div>
     </div>
+
+    <!-- Overlap Report Progress Modal -->
+    <Transition name="fade-loading">
+      <div v-if="isGeneratingOverlapReport" class="modal-overlay report-loading-overlay">
+        <div class="loading-card report-loading-card">
+          <div class="loading-spinner-ring"></div>
+          <div class="loading-title">Analyzing GPX Overlaps</div>
+          <div class="loading-subtitle">{{ overlapStatusMessage }}</div>
+
+          <!-- Animated Progress Bar -->
+          <div class="report-progress-bar-wrap">
+            <div class="report-progress-bar-fill" :style="{ width: overlapProgress + '%' }"></div>
+          </div>
+          <div class="report-progress-pct">{{ overlapProgress }}%</div>
+
+          <!-- Live Metrics Grid -->
+          <div class="report-metrics-grid">
+            <div class="metric-item">
+              <span class="metric-val">{{ overlapMetrics.polygons }}</span>
+              <span class="metric-lbl">Polygons</span>
+            </div>
+            <div class="metric-item">
+              <span class="metric-val">{{ overlapMetrics.candidates }}</span>
+              <span class="metric-lbl">Candidate Pairs</span>
+            </div>
+            <div class="metric-item">
+              <span class="metric-val">{{ overlapMetrics.matches }}</span>
+              <span class="metric-lbl">Overlaps Found</span>
+            </div>
+          </div>
+
+          <!-- Cancel Action -->
+          <div class="report-modal-actions">
+            <button type="button" class="btn btn-secondary btn-sm" @click="cancelOverlapReport">
+              Cancel Export
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -927,6 +983,7 @@ import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
 import { downloadZip } from 'client-zip'
 import proj4 from 'proj4'
 import alcalaBoundaryRaw from '@/assets/AlcalaBoundary.json'
+import { generateGpxOverlapReport } from '@/utils/gpxOverlapService'
 
 // Register UTM Zone 51N projection (EPSG:32651)
 proj4.defs('EPSG:32651', '+proj=utm +zone=51 +datum=WGS84 +units=m +no_defs')
@@ -1222,6 +1279,22 @@ const uploadedFiles = ref([])
 const gpxSearchQuery = ref('')
 const uploadProgress = ref([])
 const pendingDuplicateFile = ref(null)
+const isGeneratingOverlapReport = ref(false)
+const overlapProgress = ref(0)
+const overlapScanThreshold = ref(30)
+const overlapStatusMessage = ref('Preparing field polygons...')
+const overlapMetrics = ref({
+  polygons: 0,
+  candidates: 0,
+  matches: 0
+})
+let overlapAbortController = null
+
+function cancelOverlapReport() {
+  if (overlapAbortController) {
+    overlapAbortController.abort()
+  }
+}
 
 const farmers = ref([])
 const newFarmer = ref({ name: '', location: '', area: '', coords: '', commodity: 'Rice' })
@@ -1888,7 +1961,7 @@ function buildFarmerPopupHtml(farmer, parcelIndex = 0, lat = 0, lng = 0) {
         const [pLat, pLng] = p.coords.split(',').map(Number)
         pComm = getCommodityFromCoordinates(pLat, pLng)
       }
-      const commBadge = pComm ? ` · <span style="font-weight:600;color:${pComm.toLowerCase() === 'corn' ? '#d97706' : '#059669'};">${escapeHtml(pComm)}</span>` : ''
+      const commBadge = pComm ? '' : ''
 
       parcelsHtml += `
         <div 
@@ -1924,7 +1997,7 @@ function buildFarmerPopupHtml(farmer, parcelIndex = 0, lat = 0, lng = 0) {
         </button>
       </div>
       ${addressHtml}
-      <p style="margin:2px 0;font-size:12px;color:#444;"><strong>Barangay:</strong> ${escapeHtml(resolveFarmerBarangay(farmer))} · <strong>Commodity:</strong> ${escapeHtml(allComms || '—')}</p>
+      <p style="margin:2px 0;font-size:12px;color:#444;"><strong>Barangay:</strong> ${escapeHtml(resolveFarmerBarangay(farmer))}</p>
       <p style="margin:2px 0;font-size:12px;color:#222;"><strong>Total Area:</strong> ${totalArea.toFixed(4)} ha (${farmer.parcels ? farmer.parcels.length : 1} parcel(s))</p>
       ${parcelsHtml}
       <div style="margin-top:6px; padding-top:6px; border-top:1px solid #eee; font-size:11px; color:#777;">
@@ -2006,7 +2079,6 @@ function buildGpxPopupHtml(fileName, normPoints, trackColor, areaHectares, areaK
       <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; border-bottom:1px solid #eee; padding-bottom:4px;">
         <h3 style="margin:0; color:#2e7d32; font-size:15px; font-weight:700;">${escapeHtml(displayName)}</h3>
         <div style="display:flex; align-items:center; gap:6px;">
-          <span style="background:${trackColor}; color:white; font-size:10.5px; font-weight:bold; padding:2px 7px; border-radius:10px;">${escapeHtml(displayCommodity)}</span>
           <button type="button" class="btn-popup-edit" onclick="window.editFarmerByPopup('${safeDisplayName}')" title="Edit Farmer Profile">
             ✏️ Edit
           </button>
@@ -3623,80 +3695,45 @@ function fitToFile(target) {
   const index = typeof target === 'number' ? target : uploadedFiles.value.indexOf(target)
   const file = typeof target === 'object' && target ? target : (index >= 0 ? uploadedFiles.value[index] : null)
   if (!file || !map) return
+
+  // Ensure file is visible
+  if (file.visible === false) {
+    file.visible = true
+    persistGpxTracks()
+  }
+
   getOrCreateGpxTrackLayer(file)
   if (file.layer && gpxTracksLayerGroup && !gpxTracksLayerGroup.hasLayer(file.layer) && parcelPolygonsVisible.value) {
     gpxTracksLayerGroup.addLayer(file.layer)
   }
-  if (file.layer) {
+  if (gpxMarkersVisible.value && gpxMarkersLayerGroup) {
+    if (file.startMarker && !gpxMarkersLayerGroup.hasLayer(file.startMarker)) gpxMarkersLayerGroup.addLayer(file.startMarker)
+    if (file.endMarker && !gpxMarkersLayerGroup.hasLayer(file.endMarker)) gpxMarkersLayerGroup.addLayer(file.endMarker)
+  }
+
+  if (file.layer && file.layer.getBounds) {
     try {
-      map.fitBounds(file.layer.getBounds(), { padding: [60, 60] })
-    } catch (e) {}
+      map.fitBounds(file.layer.getBounds(), { padding: [50, 50], maxZoom: 17 })
+    } catch (_) {
+      if (file.center) map.flyTo([file.center.lat, file.center.lng], 16, { duration: 1.0 })
+    }
   } else if (file.center) {
-    map.flyTo([file.center.lat, file.center.lng], 16)
+    map.flyTo([file.center.lat, file.center.lng], 16, { duration: 1.0 })
   }
 
-  // Find associated farmer marker and open its popup
-  const relatedFarmer = farmers.value.find(f => isGpxTrackRelatedToFarmer(file, f))
-  let targetMarker = null
-
-  if (relatedFarmer) {
-    // If multiple parcels, find the marker closest to file.center
-    if (file.center) {
-      const candidates = farmerMarkers.filter(m => m.farmer === relatedFarmer || (m.farmer && m.farmer.name && relatedFarmer.name && m.farmer.name.toUpperCase() === relatedFarmer.name.toUpperCase()))
-      if (candidates.length > 0) {
-        let bestDist = Infinity
-        for (const c of candidates) {
-          if (c.marker) {
-            const pos = c.marker.getLatLng()
-            const dist = Math.abs(pos.lat - file.center.lat) + Math.abs(pos.lng - file.center.lng)
-            if (dist < bestDist) {
-              bestDist = dist
-              targetMarker = c.marker
-            }
-          }
-        }
-      }
-    }
-    if (!targetMarker) {
-      const fm = farmerMarkers.find(m => m.farmer === relatedFarmer || (m.farmer && m.farmer.name && relatedFarmer.name && m.farmer.name.toUpperCase() === relatedFarmer.name.toUpperCase()))
-      if (fm) targetMarker = fm.marker
-    }
-  }
-
-  // If no farmer found by metadata, try matching farmer marker by proximity to track center
-  if (!targetMarker && file.center) {
-    let bestDist = 0.005 // within ~500m
-    for (const fm of farmerMarkers) {
-      if (fm.marker) {
-        const pos = fm.marker.getLatLng()
-        const dist = Math.abs(pos.lat - file.center.lat) + Math.abs(pos.lng - file.center.lng)
-        if (dist < bestDist) {
-          bestDist = dist
-          targetMarker = fm.marker
-        }
-      }
-    }
-  }
-
-  if (targetMarker) {
-    setTimeout(() => {
-      if (targetMarker) {
-        if (farmerLayerGroup && farmerLayerGroup.zoomToShowLayer) {
-          farmerLayerGroup.zoomToShowLayer(targetMarker, () => {
-            targetMarker.openPopup()
-          })
-        } else {
-          targetMarker.openPopup()
-        }
-      }
-    }, 350)
-  } else if (file.layer && file.center) {
+  const popupPos = file.center ? [file.center.lat, file.center.lng] : (file.layer?.getBounds ? file.layer.getBounds().getCenter() : null)
+  if (file.layer && popupPos) {
     setTimeout(() => {
       try {
-        file.layer.openPopup([file.center.lat, file.center.lng])
+        if (file.layer) file.layer.openPopup(popupPos)
       } catch (_) {}
-    }, 350)
+    }, 300)
+    try {
+      file.layer.openPopup(popupPos)
+    } catch (_) {}
   }
+
+  setStatus(`🎯 Zoomed to GPX track ${file.name}`, 'success')
 }
 
 async function removeFile(target, skipConfirm = false) {
@@ -5348,159 +5385,94 @@ function exportFarmersJSON() {
   success('Exported farmers to JSON')
 }
 
-function exportDuplicateParcelsCSV() {
-  const esc = (val) => {
-    const s = val === null || val === undefined ? '' : String(val)
-    if (/[",\n\r]/.test(s)) return '"' + s.replace(/"/g, '""') + '"'
-    return s
-  }
-
-  // 1. Gather all parcel items from both uploadedFiles and registered farmers
-  const items = []
-
-  uploadedFiles.value.forEach(file => {
-    const fileArea = file.areaHectares !== undefined
-      ? Number(file.areaHectares)
-      : (file.areaKm2 ? Number(file.areaKm2) * 100 : (calculatePolygonArea(file.points || []) * 100))
-    const coords = file.center ? `${file.center.lat.toFixed(4)},${file.center.lng.toFixed(4)}` : ''
-    const farmerName = file.farmerName || deriveNameFromGPX(file.name)
-    const location = file.location || resolveGpxBarangay(file.name, file.center)
-
-    items.push({
-      source: 'GPX Track',
-      name: file.name,
-      farmerName,
-      location,
-      commodity: file.commodity || deriveCommodityFromGPX(file.name) || '',
-      area: fileArea,
-      coords,
-      points: file.points || [],
-      center: file.center
-    })
-  })
-
-  farmers.value.forEach(f => {
-    const parcels = f.parcels && f.parcels.length > 0 ? f.parcels : [{ area: f.area || 0, coords: f.coords || '' }]
-    parcels.forEach((p, pIdx) => {
-      const gpxName = (f.gpxFileNames && f.gpxFileNames[pIdx]) || f.gpxFileName || f.name || 'Unspecified GPX'
-      items.push({
-        source: 'Registered Farmer Parcel',
-        name: gpxName,
-        farmerName: f.name,
-        location: f.location || resolveFarmerBarangay(f),
-        commodity: f.commodity || '',
-        area: Number(p.area || 0),
-        coords: p.coords || '',
-        parcelIndex: pIdx + 1,
-        center: p.coords ? {
-          lat: Number(p.coords.split(',')[0]),
-          lng: Number(p.coords.split(',')[1])
-        } : null
-      })
-    })
-  })
-
-  // 2. Identify duplicates where coordinates match, but GPX filename AND area are different
-  const matchedPairs = []
-  const recordedKeys = new Set()
-
-  for (let i = 0; i < items.length; i++) {
-    for (let j = i + 1; j < items.length; j++) {
-      const a = items[i]
-      const b = items[j]
-
-      // Check if coordinates match
-      let coordsMatch = false
-      if (a.points && b.points && a.points.length > 0 && b.points.length > 0) {
-        coordsMatch = areTrackCoordinatesMatching(a.points, b.points)
-      }
-      if (!coordsMatch && a.coords && b.coords && a.coords === b.coords) {
-        coordsMatch = true
-      }
-      if (!coordsMatch && a.center && b.center && !isNaN(a.center.lat) && !isNaN(b.center.lat)) {
-        const dist = haversineDistance(a.center.lat, a.center.lng, b.center.lat, b.center.lng)
-        if (dist < 0.05) {
-          coordsMatch = true
-        }
-      }
-
-      if (!coordsMatch) continue
-
-      const nameA = String(a.name || '').trim().toLowerCase()
-      const nameB = String(b.name || '').trim().toLowerCase()
-      const diffFileName = nameA !== nameB
-
-      const areaA = Number(a.area || 0)
-      const areaB = Number(b.area || 0)
-      const diffArea = Math.abs(areaA - areaB) >= 0.0001
-
-      // Coordinates match BUT GPX filename and area are different
-      if (diffFileName && diffArea) {
-        const pairKey = `${a.name}|${b.name}|${a.coords || ''}|${b.coords || ''}`
-        if (!recordedKeys.has(pairKey)) {
-          recordedKeys.add(pairKey)
-          matchedPairs.push({ itemA: a, itemB: b, diffHa: Math.abs(areaA - areaB) })
-        }
-      }
-    }
-  }
-
-  if (matchedPairs.length === 0) {
-    info('No duplicate parcels found with matching coordinates and different GPX filenames/areas.')
+async function exportOverlapReportCSV() {
+  if (uploadedFiles.value.length < 2) {
+    warning('At least 2 GPX tracks are required to analyze overlaps.')
     return
   }
 
-  const header = [
-    'Group ID',
-    'Item Type',
-    'Farmer Name',
-    'GPX File Name / Source',
-    'Barangay / Location',
-    'Commodity',
-    'Area (ha)',
-    'Coordinates',
-    'Matched With File',
-    'Matched Area (ha)',
-    'Area Difference (ha)'
-  ]
+  isGeneratingOverlapReport.value = true
+  overlapProgress.value = 0
+  overlapStatusMessage.value = 'Preparing & validating field polygons...'
+  overlapMetrics.value = {
+    polygons: uploadedFiles.value.length,
+    candidates: 0,
+    matches: 0
+  }
+  setStatus('Analyzing GPX polygon overlaps...', 'info')
 
-  const rows = []
-  matchedPairs.forEach((pair, idx) => {
-    const groupId = `DUP-${idx + 1}`
-    const { itemA, itemB, diffHa } = pair
+  overlapAbortController = new AbortController()
 
-    rows.push([
-      groupId,
-      itemA.source,
-      itemA.farmerName || '',
-      itemA.name || '',
-      itemA.location || '',
-      itemA.commodity || '',
-      (itemA.area != null ? Number(itemA.area).toFixed(4) : ''),
-      itemA.coords || '',
-      itemB.name || '',
-      (itemB.area != null ? Number(itemB.area).toFixed(4) : ''),
-      diffHa.toFixed(4)
-    ].map(esc))
+  try {
+    // Format all uploaded GPX records with complete attributes
+    const records = uploadedFiles.value.map(file => {
+      const farmerName = file.farmerName || deriveNameFromGPX(file.name) || ''
+      const location = file.location || resolveGpxBarangay(file.name, file.center) || ''
+      const commodity = file.commodity || deriveCommodityFromGPX(file.name) || ''
+      return {
+        name: file.name,
+        farmerName: farmerName || null,
+        address: file.address || null,
+        location: location || null,
+        commodity: commodity || null,
+        color: file.color,
+        center: file.center,
+        points: file.points || [],
+        pointCount: file.pointCount || (file.points ? file.points.length : 0),
+        visible: file.visible !== false,
+        areaKm2: file.areaKm2,
+        areaHectares: file.areaHectares,
+        areaMethod: file.areaMethod || 'polygon',
+        isEnclosed: file.isEnclosed !== false,
+        updated_at: file.updated_at || new Date().toISOString()
+      }
+    })
 
-    rows.push([
-      groupId,
-      itemB.source,
-      itemB.farmerName || '',
-      itemB.name || '',
-      itemB.location || '',
-      itemB.commodity || '',
-      (itemB.area != null ? Number(itemB.area).toFixed(4) : ''),
-      itemB.coords || '',
-      itemA.name || '',
-      (itemA.area != null ? Number(itemA.area).toFixed(4) : ''),
-      diffHa.toFixed(4)
-    ].map(esc))
-  })
+    const { csv, summary } = await generateGpxOverlapReport(records, {
+      minOverlapPct: overlapScanThreshold.value,
+      signal: overlapAbortController.signal,
+      onProgress: ({ stageMessage, percent, polygonsCount, candidatePairsCount, matchesCount }) => {
+        overlapProgress.value = percent
+        overlapStatusMessage.value = stageMessage
+        overlapMetrics.value = {
+          polygons: polygonsCount || records.length,
+          candidates: candidatePairsCount || 0,
+          matches: matchesCount || 0
+        }
+        setStatus(`Analyzing overlaps: ${percent}% (${matchesCount} found)...`, 'info')
+      }
+    })
 
-  const csv = [header.map(esc).join(','), ...rows.map(r => r.join(','))].join('\r\n')
-  downloadFile('\uFEFF' + csv, `duplicate_parcels_diff_area_${new Date().toISOString().slice(0, 10)}.csv`, 'text/csv;charset=utf-8;')
-  success(`Exported ${matchedPairs.length} duplicate parcel group(s) to CSV`)
+    console.log('=== GPX FIELD POLYGON OVERLAP REPORT SUMMARY ===')
+    console.log(`Total Polygons Checked:  ${summary.totalPolygonsChecked}`)
+    console.log(`Valid Polygons Compared: ${summary.validPolygonsCompared}`)
+    console.log(`Candidate Pairs Checked: ${summary.candidatePairsChecked}`)
+    console.log(`Total Overlapping Pairs: ${summary.totalOverlappingPairs}`)
+    console.log(`- Duplicate (>90%):      ${summary.duplicateCount}`)
+    console.log(`- Major Overlap (>30%):  ${summary.majorOverlapCount}`)
+    console.log(`- Minor Overlap (<=30%): ${summary.minorOverlapCount}`)
+    console.log('================================================')
+
+    if (summary.totalOverlappingPairs === 0) {
+      info('No overlapping GPX track polygons were detected among the uploaded tracks.')
+    } else {
+      const timestamp = new Date().toISOString().slice(0, 10)
+      downloadFile('\uFEFF' + csv, `overlap_report_${timestamp}.csv`, 'text/csv;charset=utf-8;')
+      success(`Overlap report generated: ${summary.totalOverlappingPairs} overlapping pairs (${summary.duplicateCount} duplicates, ${summary.majorOverlapCount} major, ${summary.minorOverlapCount} minor). CSV downloaded!`)
+    }
+  } catch (err) {
+    if (err.name === 'AbortError' || err.message?.includes('cancelled')) {
+      info('Overlap report generation cancelled.')
+    } else {
+      console.error('Error generating GPX overlap report:', err)
+      useToast().error('Error generating overlap report: ' + (err.message || 'Unknown error'))
+    }
+  } finally {
+    isGeneratingOverlapReport.value = false
+    overlapProgress.value = 0
+    overlapAbortController = null
+    clearStatus()
+  }
 }
 
 async function exportGPX() {
@@ -7509,6 +7481,128 @@ select.field-control-sm {
 .fade-loading-enter-from,
 .fade-loading-leave-to {
   opacity: 0;
+}
+
+/* Overlap Export Box & Threshold */
+.overlap-export-box {
+  background: var(--bg-subtle, #f8fafc);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: var(--radius-sm, 6px);
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.overlap-threshold-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+
+.overlap-threshold-row .field-label-xs {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted, #64748b);
+  white-space: nowrap;
+}
+
+.field-control-xs {
+  font-size: 0.74rem;
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  border: 1px solid var(--border, #cbd5e1);
+  background: var(--bg-elevated, #ffffff);
+  color: var(--heading, #0f172a);
+  outline: none;
+  width: 100%;
+  max-width: 180px;
+}
+
+.field-control-xs:focus {
+  border-color: var(--brand-600, #2e7d32);
+}
+
+/* Overlap Report Loading Modal Styles */
+.report-loading-overlay {
+  z-index: 2000;
+}
+
+.report-loading-card {
+  min-width: 360px;
+  max-width: 440px;
+  padding: 2rem 2.25rem;
+}
+
+.report-loading-card .loading-subtitle {
+  font-size: 0.84rem;
+  color: var(--text-muted, #64748b);
+  margin-bottom: 1.25rem;
+  min-height: 1.2rem;
+}
+
+.report-progress-bar-wrap {
+  width: 100%;
+  height: 8px;
+  background: var(--bg-subtle, #f1f5f9);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 0.4rem;
+}
+
+.report-progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #10b981, #059669);
+  border-radius: 999px;
+  transition: width 0.15s ease-out;
+}
+
+.report-progress-pct {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--heading, #0f172a);
+  font-family: var(--font-mono, monospace);
+  margin-bottom: 1.25rem;
+}
+
+.report-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  width: 100%;
+  background: var(--bg-subtle, #f8fafc);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 8px;
+  padding: 0.75rem 0.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.report-metrics-grid .metric-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.report-metrics-grid .metric-val {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--brand-700, #15803d);
+  font-family: var(--font-mono, monospace);
+}
+
+.report-metrics-grid .metric-lbl {
+  font-size: 0.68rem;
+  color: var(--text-muted, #64748b);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-top: 0.15rem;
+}
+
+.report-modal-actions {
+  display: flex;
+  justify-content: center;
+  width: 100%;
 }
 
 @media (max-width: 860px) {

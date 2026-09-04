@@ -41,6 +41,7 @@
 ### 5. Multi-Format Data Export
 - **CSV Export**: Formatted spreadsheet including Farmer Name, Location, Commodity, Parcel Number, Area (ha), and Coordinates with UTF-8 BOM encoding for seamless Excel import.
 - **JSON Export**: Complete structured farmer dataset.
+- **Overlapping Parcels (CSV) Report**: Analyzes uploaded GPX field polygons for pairwise geometric overlaps using Turf.js. Detects and repairs self-intersecting geometries (`unkink-polygon`), computes geodesic intersection areas in hectares, classifies pairs (`duplicate` >90%, `major_overlap` >30%, `minor_overlap` ≤30%), and calculates straight-line center distances. Runs completely non-blocking in the browser without freezing the UI.
 - **GPX Layer Export**: Generates and downloads individual valid GPX track files with full XML coordinates.
 
 ---
