@@ -1068,9 +1068,12 @@ function getCommodityFromCoordinates(lat, lng) {
   return null
 }
 
-// Resolve list of commodity types for a farmer based on their parcel coordinates
+// Resolve list of commodity types for a farmer based on their parcel coordinates (with caching)
 function resolveFarmerCommodities(farmer) {
   if (!farmer) return ['Rice']
+  if (Array.isArray(farmer._cachedCommodities) && farmer._cachedCommodities.length > 0) {
+    return farmer._cachedCommodities
+  }
   const matched = new Set()
 
   if (Array.isArray(farmer.parcels) && farmer.parcels.length > 0) {
@@ -1107,35 +1110,45 @@ function resolveFarmerCommodities(farmer) {
     }
   }
 
-  return Array.from(matched)
+  const result = Array.from(matched)
+  farmer._cachedCommodities = result
+  return result
 }
 
 function resolveFarmerBarangay(farmer) {
   if (!farmer) return 'Alcala'
+  if (farmer._cachedBarangay) return farmer._cachedBarangay
+
+  let resolved = null
   // 1. Try to detect from parcel coordinates
   if (farmer.parcels && farmer.parcels.length > 0) {
     for (const p of farmer.parcels) {
       if (p.coords) {
         const [lat, lng] = p.coords.split(',').map(Number)
         const brgy = getBarangayFromCoordinates(lat, lng)
-        if (brgy) return brgy
+        if (brgy) {
+          resolved = brgy
+          break
+        }
       }
     }
   }
-  if (farmer.coords) {
+  if (!resolved && farmer.coords) {
     const [lat, lng] = farmer.coords.split(',').map(Number)
     const brgy = getBarangayFromCoordinates(lat, lng)
-    if (brgy) return brgy
+    if (brgy) resolved = brgy
   }
   // 2. Clean location field if it has "Brgy. Baybayog, Alcala, Cagayan" -> "Baybayog"
-  if (farmer.location) {
+  if (!resolved && farmer.location) {
     let loc = String(farmer.location).trim()
     loc = loc.replace(/,.*$/, '').replace(/^(BRGY\.?|BARANGAY)\s*/i, '').trim()
     if (loc && loc.toUpperCase() !== 'ALCALA' && loc.toUpperCase() !== 'CAGAYAN') {
-      return loc
+      resolved = loc
     }
   }
-  return farmer.location || 'Alcala'
+  if (!resolved) resolved = farmer.location || 'Alcala'
+  farmer._cachedBarangay = resolved
+  return resolved
 }
 
 function resolveGpxBarangay(fileName, center) {
@@ -1800,24 +1813,42 @@ function jumpToParcel(farmerName, parcelIdx) {
     return
   }
 
-  // 1. Try to find a GPX track whose center/points closely match this specific parcel's coordinates (~100m)
+  // 1. Try to find a GPX track whose center/points closely match this specific parcel's coordinates or GPX filename
   const matchingGpx = uploadedFiles.value.find(track => {
+    if (parcel.gpxFileName && track.name === parcel.gpxFileName) return true
     if (track.center && Math.abs(track.center.lat - pLat) < 0.0015 && Math.abs(track.center.lng - pLng) < 0.0015) {
       return true
     }
     return false
   })
 
+  // Ensure layer exists for the matching GPX track
+  if (matchingGpx) {
+    getOrCreateGpxTrackLayer(matchingGpx)
+    if (matchingGpx.layer && gpxTracksLayerGroup && !gpxTracksLayerGroup.hasLayer(matchingGpx.layer) && parcelPolygonsVisible.value) {
+      gpxTracksLayerGroup.addLayer(matchingGpx.layer)
+    }
+  }
+
   // 2. Find the exact marker for this parcel index
-  const fm = farmerMarkers.find(m => 
+  let fm = farmerMarkers.find(m => 
     (m.farmer === farmer || (m.farmer && m.farmer.name && m.farmer.name.toUpperCase() === target)) && 
-    m.parcelIndex === parcelIdx
+    (m.parcelIndex === parcelIdx || (m.marker && m.marker._parcelIndex === parcelIdx))
   )
 
-  if (matchingGpx && matchingGpx.layer) {
-    if (matchingGpx.layer.getBounds) {
+  // If no marker exists yet for this parcel, create one immediately
+  if (!fm && !isNaN(pLat) && !isNaN(pLng)) {
+    addFarmerMarker(farmer, pLat, pLng, parcelIdx)
+    fm = farmerMarkers.find(m => 
+      (m.farmer === farmer || (m.farmer && m.farmer.name && m.farmer.name.toUpperCase() === target)) && 
+      (m.parcelIndex === parcelIdx || (m.marker && m.marker._parcelIndex === parcelIdx))
+    )
+  }
+
+  if (matchingGpx && matchingGpx.layer && matchingGpx.layer.getBounds) {
+    try {
       map.fitBounds(matchingGpx.layer.getBounds(), { padding: [50, 50], maxZoom: 17 })
-    } else {
+    } catch (_) {
       map.flyTo([pLat, pLng], 17, { duration: 1.0 })
     }
   } else {
@@ -1828,7 +1859,13 @@ function jumpToParcel(farmerName, parcelIdx) {
 
   setTimeout(() => {
     if (fm && fm.marker) {
-      fm.marker.openPopup()
+      if (farmerLayerGroup && farmerLayerGroup.zoomToShowLayer) {
+        farmerLayerGroup.zoomToShowLayer(fm.marker, () => {
+          fm.marker.openPopup()
+        })
+      } else {
+        fm.marker.openPopup()
+      }
     } else if (matchingGpx && matchingGpx.layer) {
       const popupPos = matchingGpx.center ? [matchingGpx.center.lat, matchingGpx.center.lng] : [pLat, pLng]
       matchingGpx.layer.openPopup(popupPos)
@@ -2076,9 +2113,7 @@ function refreshAllMapPopups() {
   })
 }
 
-function addFarmerMarker(farmer, lat, lng, parcelIndex = 0) {
-  if (!map || !farmerLayerGroup) return
-  const isPrimary = parcelIndex === 0
+function createFarmerMarkerObject(farmer, lat, lng, parcelIndex = 0) {
   const parcelColors = ['#2e7d32', '#1e88e5', '#f9a825', '#8e24aa', '#e53935', '#00acc1']
   const color = parcelColors[parcelIndex % parcelColors.length]
   const icon = L.divIcon({
@@ -2091,8 +2126,13 @@ function addFarmerMarker(farmer, lat, lng, parcelIndex = 0) {
   const marker = L.marker([lat, lng], { icon })
   marker._farmerRef = farmer
   marker._parcelIndex = parcelIndex
-
   marker.bindPopup(() => buildFarmerPopupHtml(marker._farmerRef, marker._parcelIndex, marker.getLatLng().lat, marker.getLatLng().lng))
+  return marker
+}
+
+function addFarmerMarker(farmer, lat, lng, parcelIndex = 0) {
+  if (!map || !farmerLayerGroup) return
+  const marker = createFarmerMarkerObject(farmer, lat, lng, parcelIndex)
   farmerLayerGroup.addLayer(marker)
   farmerMarkers.push({ marker: markRaw(marker), farmer, parcelIndex })
 }
@@ -2129,9 +2169,10 @@ async function renderFarmersData(farmersList) {
   clearAllFarmerMarkers()
   farmers.value = Array.isArray(farmersList) ? farmersList : []
   const total = farmers.value.length
-  const CHUNK = 30
+  const CHUNK = 100
   for (let i = 0; i < total; i += CHUNK) {
     const end = Math.min(i + CHUNK, total)
+    const chunkMarkers = []
     for (let k = i; k < end; k++) {
       const f = farmers.value[k]
       if (!f.parcels) {
@@ -2147,7 +2188,9 @@ async function renderFarmersData(farmersList) {
               const matchedComm = getCommodityFromCoordinates(lat, lng)
               if (matchedComm) p.commodity = matchedComm
             }
-            addFarmerMarker(f, lat, lng, idx)
+            const marker = createFarmerMarkerObject(f, lat, lng, idx)
+            chunkMarkers.push(marker)
+            farmerMarkers.push({ marker: markRaw(marker), farmer: f, parcelIndex: idx })
           }
         }
       })
@@ -2155,6 +2198,10 @@ async function renderFarmersData(farmersList) {
       if (resolvedComms.length > 0) {
         f.commodity = resolvedComms[0]
       }
+      resolveFarmerBarangay(f)
+    }
+    if (chunkMarkers.length > 0 && farmerLayerGroup) {
+      farmerLayerGroup.addLayers(chunkMarkers)
     }
     // Yield to main thread between chunks so the browser stays responsive
     if (i + CHUNK < total) {
@@ -2177,9 +2224,10 @@ async function loadSampleData() {
   }
 
   const total = farmers.value.length
-  const CHUNK = 30
+  const CHUNK = 100
   for (let i = 0; i < total; i += CHUNK) {
     const end = Math.min(i + CHUNK, total)
+    const chunkMarkers = []
     for (let k = i; k < end; k++) {
       const f = farmers.value[k]
       if (!f.parcels) {
@@ -2195,7 +2243,9 @@ async function loadSampleData() {
               const matchedComm = getCommodityFromCoordinates(lat, lng)
               if (matchedComm) p.commodity = matchedComm
             }
-            addFarmerMarker(f, lat, lng, idx)
+            const marker = createFarmerMarkerObject(f, lat, lng, idx)
+            chunkMarkers.push(marker)
+            farmerMarkers.push({ marker: markRaw(marker), farmer: f, parcelIndex: idx })
           }
         }
       })
@@ -2203,6 +2253,10 @@ async function loadSampleData() {
       if (resolvedComms.length > 0) {
         f.commodity = resolvedComms[0]
       }
+      resolveFarmerBarangay(f)
+    }
+    if (chunkMarkers.length > 0 && farmerLayerGroup) {
+      farmerLayerGroup.addLayers(chunkMarkers)
     }
     // Yield to main thread between chunks so the browser stays responsive
     if (i + CHUNK < total) {
@@ -2850,6 +2904,9 @@ async function processBatchFiles(files) {
   const skipCount = uploadProgress.value.filter(p => p.status === 'skipped').length
   success(`Batch upload completed: ${successCount} imported, ${skipCount} skipped (${files.length} total)`)
 
+  // Reconcile all tracks against farmer records
+  await reconcileOrphanGpxTracks()
+
   // Save new tracks to server SQLite database
   const newTracks = uploadedFiles.value.slice(initialTrackCount)
   if (newTracks.length > 0) {
@@ -3345,6 +3402,7 @@ async function renderGpxTracksData(tracksList, syncToServer = false) {
   uploadedFiles.value = newFiles
   updateVisibleGpxLayers()
   persistGpxTracks()
+  await reconcileOrphanGpxTracks()
   restoreActivePopup(activePopup)
 }
 
@@ -4014,20 +4072,42 @@ function autoRegisterFromGPX(fileName) {
   const derived = deriveNameFromGPX(file.name)
   const coords = `${file.center.lat.toFixed(4)},${file.center.lng.toFixed(4)}`
   const areaHa = Number(Number(file.areaHectares).toFixed(4))
-  const commodity = deriveCommodityFromGPX(file.name)
+  const detectedComm = getCommodityFromCoordinates(file.center.lat, file.center.lng)
+  const commodity = detectedComm || deriveCommodityFromGPX(file.name)
   const detectedBrgy = getBarangayFromCoordinates(file.center.lat, file.center.lng)
   const location = detectedBrgy || deriveLocationFromGPX(file.name) || 'Alcala'
 
-  const existingFarmer = farmers.value.find(f => f.name.toUpperCase() === derived.toUpperCase())
+  // Look for existing farmer by derived name or existing linkage
+  const existingFarmer = farmers.value.find(f => {
+    if (!f || !f.name) return false
+    const fUpper = f.name.trim().toUpperCase()
+    if (fUpper === derived.toUpperCase()) return true
+    if (f.gpxFileName && f.gpxFileName === fileName) return true
+    if (Array.isArray(f.gpxFileNames) && f.gpxFileNames.includes(fileName)) return true
+    return false
+  })
+
   if (existingFarmer) {
     if (!existingFarmer.parcels) existingFarmer.parcels = []
-    const alreadyHasCoord = existingFarmer.parcels.some(p => p.coords === coords)
-    if (!alreadyHasCoord) {
-      existingFarmer.parcels.push({ area: areaHa, coords, gpxFileName: fileName })
+    
+    // Check if a parcel already corresponds to this coordinate or this GPX file
+    const existingParcelIdx = existingFarmer.parcels.findIndex(p => {
+      if (p.gpxFileName && p.gpxFileName === fileName) return true
+      if (p.coords) {
+        const [pLat, pLng] = p.coords.split(',').map(Number)
+        if (!isNaN(pLat) && !isNaN(pLng)) {
+          return Math.abs(pLat - file.center.lat) < 0.001 && Math.abs(pLng - file.center.lng) < 0.001
+        }
+      }
+      return false
+    })
+
+    if (existingParcelIdx < 0) {
+      existingFarmer.parcels.push({ area: areaHa, coords, gpxFileName: fileName, commodity })
       existingFarmer.area = existingFarmer.parcels.reduce((sum, p) => sum + (Number(p.area) || 0), 0)
       addFarmerMarker(existingFarmer, file.center.lat, file.center.lng, existingFarmer.parcels.length - 1)
     } else {
-      const matchingParcel = existingFarmer.parcels.find(p => p.coords === coords)
+      const matchingParcel = existingFarmer.parcels[existingParcelIdx]
       if (matchingParcel) {
         if (Math.abs(Number(matchingParcel.area || 0) - areaHa) >= 0.0001) {
           matchingParcel.area = areaHa
@@ -4036,15 +4116,34 @@ function autoRegisterFromGPX(fileName) {
         if (!matchingParcel.gpxFileName) {
           matchingParcel.gpxFileName = fileName
         }
+        if (!matchingParcel.commodity) {
+          matchingParcel.commodity = commodity
+        }
+        matchingParcel.coords = coords
+      }
+      // Verify farmer marker exists for this parcel
+      const hasMarker = farmerMarkers.some(m => 
+        (m.farmer === existingFarmer || (m.farmer && m.farmer.name && m.farmer.name.toUpperCase() === existingFarmer.name.toUpperCase())) && 
+        (m.parcelIndex === existingParcelIdx || m.marker._parcelIndex === existingParcelIdx)
+      )
+      if (!hasMarker) {
+        addFarmerMarker(existingFarmer, file.center.lat, file.center.lng, existingParcelIdx)
       }
     }
+
     if (!existingFarmer.location || existingFarmer.location === 'ALCALA, CAGAYAN' || existingFarmer.location === 'Alcala') {
       if (detectedBrgy) existingFarmer.location = detectedBrgy
     }
     if (!existingFarmer.gpxFileNames) existingFarmer.gpxFileNames = []
     if (!existingFarmer.gpxFileNames.includes(fileName)) existingFarmer.gpxFileNames.push(fileName)
+    if (!existingFarmer.gpxFileName) existingFarmer.gpxFileName = fileName
+
+    const resolvedComms = resolveFarmerCommodities(existingFarmer)
+    if (resolvedComms.length > 0) existingFarmer.commodity = resolvedComms[0]
+
     file.farmerName = existingFarmer.name
     unmarkFarmerDeleted(existingFarmer.name)
+    farmersListRevision.value++
     persistFarmers()
     apiUpdateFarmer(existingFarmer.id || existingFarmer.name, existingFarmer).catch(() => {})
     return existingFarmer
@@ -4056,12 +4155,13 @@ function autoRegisterFromGPX(fileName) {
     commodity,
     gpxFileName: fileName,
     gpxFileNames: [fileName],
-    parcels: [{ area: areaHa, coords, gpxFileName: fileName }]
+    parcels: [{ area: areaHa, coords, gpxFileName: fileName, commodity }]
   }
   farmer.area = areaHa
   file.farmerName = derived
   unmarkFarmerDeleted(derived)
   farmers.value.push(farmer)
+  farmersListRevision.value++
   persistFarmers()
   addFarmerMarker(farmer, file.center.lat, file.center.lng, 0)
   apiCreateFarmer(farmer).then(saved => {
@@ -4072,6 +4172,238 @@ function autoRegisterFromGPX(fileName) {
     }
   }).catch(() => {})
   return farmer
+}
+
+// Auto-reconcile all uploaded GPX tracks against farmers to ensure no track polygon is left without a farmer record or map marker
+async function reconcileOrphanGpxTracks() {
+  if (!uploadedFiles.value || uploadedFiles.value.length === 0) return 0
+
+  // 1. Build fast lookup maps over farmers:
+  //    - gpxMap: map from lowercase gpxFileName to farmer
+  //    - nameMap: map from trimmed uppercase farmer name to farmer
+  //    - coordMap: spatial bucket map (key = "round(lat*100),round(lng*100)") -> array of { farmer, parcelIdx, lat, lng }
+  const gpxMap = new Map()
+  const nameMap = new Map()
+  const coordBuckets = new Map()
+
+  function getCoordKey(lat, lng) {
+    return `${Math.round(lat * 100)},${Math.round(lng * 100)}`
+  }
+
+  function indexFarmer(f) {
+    if (!f) return
+    if (f.name) {
+      nameMap.set(f.name.trim().toUpperCase(), f)
+    }
+    if (f.gpxFileName) {
+      gpxMap.set(String(f.gpxFileName).trim().toLowerCase(), f)
+    }
+    if (Array.isArray(f.gpxFileNames)) {
+      f.gpxFileNames.forEach(fn => {
+        if (fn) gpxMap.set(String(fn).trim().toLowerCase(), f)
+      })
+    }
+    if (Array.isArray(f.parcels)) {
+      f.parcels.forEach((p, pIdx) => {
+        if (p.gpxFileName) {
+          gpxMap.set(String(p.gpxFileName).trim().toLowerCase(), f)
+        }
+        if (p.coords) {
+          const [lat, lng] = p.coords.split(',').map(Number)
+          if (!isNaN(lat) && !isNaN(lng)) {
+            const key = getCoordKey(lat, lng)
+            if (!coordBuckets.has(key)) coordBuckets.set(key, [])
+            coordBuckets.get(key).push({ farmer: f, parcelIndex: pIdx, lat, lng })
+          }
+        }
+      })
+    } else if (f.coords) {
+      const [lat, lng] = f.coords.split(',').map(Number)
+      if (!isNaN(lat) && !isNaN(lng)) {
+        const key = getCoordKey(lat, lng)
+        if (!coordBuckets.has(key)) coordBuckets.set(key, [])
+        coordBuckets.get(key).push({ farmer: f, parcelIndex: 0, lat, lng })
+      }
+    }
+  }
+
+  for (let i = 0; i < farmers.value.length; i++) {
+    indexFarmer(farmers.value[i])
+  }
+
+  // Fast marker lookup set: `${farmerName}::${parcelIndex}`
+  const existingMarkerKeys = new Set()
+  for (let i = 0; i < farmerMarkers.length; i++) {
+    const fm = farmerMarkers[i]
+    const fn = (fm.farmer && fm.farmer.name) ? fm.farmer.name.toUpperCase() : ''
+    const pIdx = fm.parcelIndex !== undefined ? fm.parcelIndex : (fm.marker ? fm.marker._parcelIndex : 0)
+    if (fn) existingMarkerKeys.add(`${fn}::${pIdx}`)
+  }
+
+  // Fast finder using maps
+  function findFastFarmer(fileName, center) {
+    const fnLower = (fileName || '').trim().toLowerCase()
+    if (gpxMap.has(fnLower)) return gpxMap.get(fnLower)
+
+    const derived = deriveNameFromGPX(fileName).trim().toUpperCase()
+    if (nameMap.has(derived)) return nameMap.get(derived)
+
+    if (center && center.lat && center.lng) {
+      const key = getCoordKey(center.lat, center.lng)
+      // Check exact cell and neighboring cells
+      const [cLat, cLng] = [Math.round(center.lat * 100), Math.round(center.lng * 100)]
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          const nKey = `${cLat + dx},${cLng + dy}`
+          const candidates = coordBuckets.get(nKey)
+          if (candidates) {
+            for (let c = 0; c < candidates.length; c++) {
+              const cand = candidates[c]
+              if (Math.abs(cand.lat - center.lat) < 0.001 && Math.abs(cand.lng - center.lng) < 0.001) {
+                return cand.farmer
+              }
+            }
+          }
+        }
+      }
+    }
+    return null
+  }
+
+  let newlyRegisteredCount = 0
+  let newlyUpdatedCount = 0
+  const newlyCreatedFarmers = []
+  const newMarkersToInsert = []
+  const totalFiles = uploadedFiles.value.length
+  const CHUNK_SIZE = 400
+
+  for (let i = 0; i < totalFiles; i++) {
+    const file = uploadedFiles.value[i]
+    if (!file || !file.name) continue
+
+    const matchingFarmer = findFastFarmer(file.name, file.center)
+    if (!matchingFarmer) {
+      // Auto-register new farmer record for orphaned track
+      const derived = deriveNameFromGPX(file.name)
+      const coords = file.center ? `${file.center.lat.toFixed(4)},${file.center.lng.toFixed(4)}` : ''
+      const areaHa = Number(Number(file.areaHectares || 0).toFixed(4))
+      const detectedComm = file.center ? getCommodityFromCoordinates(file.center.lat, file.center.lng) : null
+      const commodity = detectedComm || deriveCommodityFromGPX(file.name)
+      const detectedBrgy = file.center ? getBarangayFromCoordinates(file.center.lat, file.center.lng) : null
+      const location = detectedBrgy || deriveLocationFromGPX(file.name) || 'Alcala'
+
+      const farmer = {
+        name: derived,
+        location,
+        commodity,
+        gpxFileName: file.name,
+        gpxFileNames: [file.name],
+        parcels: [{ area: areaHa, coords, gpxFileName: file.name, commodity }],
+        area: areaHa,
+        _cachedCommodities: [commodity],
+        _cachedBarangay: location
+      }
+      file.farmerName = derived
+      unmarkFarmerDeleted(derived)
+      farmers.value.push(farmer)
+      indexFarmer(farmer)
+      newlyCreatedFarmers.push(farmer)
+      newlyRegisteredCount++
+
+      if (file.center && file.center.lat && file.center.lng) {
+        const marker = createFarmerMarkerObject(farmer, file.center.lat, file.center.lng, 0)
+        newMarkersToInsert.push(marker)
+        farmerMarkers.push({ marker: markRaw(marker), farmer, parcelIndex: 0 })
+        existingMarkerKeys.add(`${farmer.name.toUpperCase()}::0`)
+      }
+    } else {
+      // Matching farmer found: ensure parcel & marker exist
+      const coords = file.center ? `${file.center.lat.toFixed(4)},${file.center.lng.toFixed(4)}` : ''
+      const areaHa = Number(Number(file.areaHectares || 0).toFixed(4))
+      if (!matchingFarmer.parcels) matchingFarmer.parcels = []
+
+      let pIdx = -1
+      for (let p = 0; p < matchingFarmer.parcels.length; p++) {
+        const pr = matchingFarmer.parcels[p]
+        if (pr.gpxFileName && pr.gpxFileName === file.name) { pIdx = p; break }
+        if (pr.coords && coords && pr.coords === coords) { pIdx = p; break }
+        if (pr.coords && file.center) {
+          const [pLat, pLng] = pr.coords.split(',').map(Number)
+          if (!isNaN(pLat) && !isNaN(pLng) && Math.abs(pLat - file.center.lat) < 0.001 && Math.abs(pLng - file.center.lng) < 0.001) {
+            pIdx = p
+            break
+          }
+        }
+      }
+
+      if (pIdx < 0 && coords) {
+        const pComm = file.commodity || (file.center ? getCommodityFromCoordinates(file.center.lat, file.center.lng) : null) || 'Rice'
+        matchingFarmer.parcels.push({
+          area: areaHa,
+          coords,
+          gpxFileName: file.name,
+          commodity: pComm
+        })
+        matchingFarmer.area = matchingFarmer.parcels.reduce((s, p) => s + (Number(p.area) || 0), 0)
+        pIdx = matchingFarmer.parcels.length - 1
+        delete matchingFarmer._cachedCommodities
+
+        if (file.center && file.center.lat && file.center.lng) {
+          const marker = createFarmerMarkerObject(matchingFarmer, file.center.lat, file.center.lng, pIdx)
+          newMarkersToInsert.push(marker)
+          farmerMarkers.push({ marker: markRaw(marker), farmer: matchingFarmer, parcelIndex: pIdx })
+          existingMarkerKeys.add(`${matchingFarmer.name.toUpperCase()}::${pIdx}`)
+        }
+        newlyUpdatedCount++
+      } else if (pIdx >= 0 && file.center && file.center.lat && file.center.lng) {
+        if (!matchingFarmer.parcels[pIdx].gpxFileName) {
+          matchingFarmer.parcels[pIdx].gpxFileName = file.name
+          newlyUpdatedCount++
+        }
+        const mKey = `${matchingFarmer.name.toUpperCase()}::${pIdx}`
+        if (!existingMarkerKeys.has(mKey)) {
+          const marker = createFarmerMarkerObject(matchingFarmer, file.center.lat, file.center.lng, pIdx)
+          newMarkersToInsert.push(marker)
+          farmerMarkers.push({ marker: markRaw(marker), farmer: matchingFarmer, parcelIndex: pIdx })
+          existingMarkerKeys.add(mKey)
+        }
+      }
+
+      if (!matchingFarmer.gpxFileNames) matchingFarmer.gpxFileNames = []
+      if (!matchingFarmer.gpxFileNames.includes(file.name)) matchingFarmer.gpxFileNames.push(file.name)
+      if (!matchingFarmer.gpxFileName) matchingFarmer.gpxFileName = file.name
+      file.farmerName = matchingFarmer.name
+    }
+
+    // Yield to the event loop in chunks of CHUNK_SIZE
+    if (i % CHUNK_SIZE === 0 && i > 0) {
+      if (newMarkersToInsert.length > 0 && farmerLayerGroup) {
+        farmerLayerGroup.addLayers(newMarkersToInsert.splice(0, newMarkersToInsert.length))
+      }
+      if (isInitialLoading.value) {
+        loadingMessage.value = `Reconciling farm parcels (${i} / ${totalFiles})...`
+      }
+      await new Promise(r => setTimeout(r, 0))
+    }
+  }
+
+  // Insert any remaining markers
+  if (newMarkersToInsert.length > 0 && farmerLayerGroup) {
+    farmerLayerGroup.addLayers(newMarkersToInsert)
+  }
+
+  // Persist only once if any farmers were created or updated
+  if (newlyRegisteredCount > 0 || newlyUpdatedCount > 0) {
+    farmersListRevision.value++
+    await persistFarmers()
+  }
+
+  // Asynchronously push newly created farmers to SQLite backend in background
+  if (newlyCreatedFarmers.length > 0) {
+    apiCreateFarmer(newlyCreatedFarmers).catch(err => console.warn('Background server sync for reconciled farmers:', err))
+  }
+
+  return newlyRegisteredCount
 }
 
 async function registerFarmer() {
@@ -5405,6 +5737,7 @@ async function applyGisDeltaChanges(deltaData) {
     gpxListRevision.value++
     updateVisibleGpxLayers()
     await persistGpxTracks()
+    await reconcileOrphanGpxTracks()
   }
 
   // 6. Update last synced timestamp
@@ -5599,6 +5932,9 @@ onMounted(async () => {
 
     loadingMessage.value = 'Loading GPX tracks...'
     await loadSavedGpxTracks()
+
+    // Reconcile any tracks loaded without corresponding farmer records
+    await reconcileOrphanGpxTracks()
   } catch (err) {
     console.error('Error during GIS onMounted initialization:', err)
   } finally {
