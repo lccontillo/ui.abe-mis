@@ -1342,6 +1342,16 @@ const STORAGE_KEY_GPX_TRACKS = 'farm_area_gis_gpx_tracks'
 const GIS_IDB_DB_NAME = 'farm_area_gis_db'
 const GIS_IDB_STORE_NAME = 'gis_store'
 
+function yieldToMain() {
+  return new Promise(resolve => {
+    if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
+      window.requestIdleCallback(() => resolve(), { timeout: 16 })
+    } else {
+      setTimeout(resolve, 0)
+    }
+  })
+}
+
 function toCleanJson(val) {
   if (val === null || val === undefined) return val
   try {
@@ -5574,7 +5584,8 @@ async function applyGisDeltaChanges(deltaData) {
 
   // 1. Handle Deleted Farmers
   const deletedFarmers = (deltaData.deleted && Array.isArray(deltaData.deleted.farmers)) ? deltaData.deleted.farmers : []
-  for (const df of deletedFarmers) {
+  for (let i = 0; i < deletedFarmers.length; i++) {
+    const df = deletedFarmers[i]
     const id = df.id
     const nameUpper = (df.name || '').trim().toUpperCase()
     const idx = farmers.value.findIndex(f => (id && f.id === id) || (nameUpper && f.name && f.name.trim().toUpperCase() === nameUpper))
@@ -5584,11 +5595,15 @@ async function applyGisDeltaChanges(deltaData) {
       farmers.value.splice(idx, 1)
       farmerChangesCount++
     }
+    if (i > 0 && i % 100 === 0) {
+      await yieldToMain()
+    }
   }
 
   // 2. Handle Deleted GPX Tracks
   const deletedTracks = (deltaData.deleted && Array.isArray(deltaData.deleted.gpx_tracks)) ? deltaData.deleted.gpx_tracks : []
-  for (const dt of deletedTracks) {
+  for (let i = 0; i < deletedTracks.length; i++) {
+    const dt = deletedTracks[i]
     const id = dt.id
     const nameLower = (dt.name || '').trim().toLowerCase()
     const idx = uploadedFiles.value.findIndex(t => (id && t.id === id) || (nameLower && t.name && t.name.trim().toLowerCase() === nameLower))
@@ -5604,11 +5619,15 @@ async function applyGisDeltaChanges(deltaData) {
       uploadedFiles.value.splice(idx, 1)
       trackChangesCount++
     }
+    if (i > 0 && i % 50 === 0) {
+      await yieldToMain()
+    }
   }
 
   // 3. Upsert Updated / New Farmers
   const incomingFarmers = Array.isArray(deltaData.farmers) ? deltaData.farmers : []
-  for (const serverFarmer of incomingFarmers) {
+  for (let i = 0; i < incomingFarmers.length; i++) {
+    const serverFarmer = incomingFarmers[i]
     const nameUpper = (serverFarmer.name || '').trim().toUpperCase()
     if (deletedFarmerNames.value.has(nameUpper)) continue
 
@@ -5633,6 +5652,9 @@ async function applyGisDeltaChanges(deltaData) {
       })
     }
     farmerChangesCount++
+    if (i > 0 && i % 50 === 0) {
+      await yieldToMain()
+    }
   }
 
   // 4. Upsert Updated / New GPX Tracks
@@ -5698,6 +5720,10 @@ async function applyGisDeltaChanges(deltaData) {
       uploadedFiles.value.push(trackObj)
     }
     trackChangesCount++
+
+    if (i > 0 && i % 30 === 0) {
+      await yieldToMain()
+    }
   }
 
   // 5. Persist merged datasets and update viewport layers
