@@ -941,7 +941,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, nextTick, markRaw } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick, markRaw, toRaw } from 'vue'
 import BreadcrumbNav from '@/components/BreadcrumbNav.vue'
 import {
   Map20,
@@ -1352,11 +1352,59 @@ function yieldToMain() {
   })
 }
 
+function sanitizeGpxTrack(t) {
+  if (!t) return null
+  const rawPoints = Array.isArray(t.points) ? t.points : []
+  return {
+    id: t.id || null,
+    name: String(t.name || ''),
+    farmerId: t.farmerId || null,
+    farmerName: t.farmerName || null,
+    address: t.address || null,
+    location: t.location || null,
+    commodity: t.commodity || null,
+    points: rawPoints.map(p => Array.isArray(p) ? [Number(p[0]), Number(p[1])] : p),
+    color: t.color || '#2196F3',
+    center: Array.isArray(t.center) ? [Number(t.center[0]), Number(t.center[1])] : null,
+    pointCount: typeof t.pointCount === 'number' ? t.pointCount : rawPoints.length,
+    visible: t.visible !== false,
+    areaKm2: typeof t.areaKm2 === 'number' ? t.areaKm2 : Number(t.areaKm2 || 0),
+    areaHectares: typeof t.areaHectares === 'number' ? t.areaHectares : Number(t.areaHectares || 0),
+    areaMethod: t.areaMethod || null,
+    isEnclosed: Boolean(t.isEnclosed),
+    updated_at: t.updated_at || null
+  }
+}
+
+function sanitizeFarmer(f) {
+  if (!f) return null
+  const rawParcels = Array.isArray(f.parcels) ? f.parcels : []
+  const parcels = rawParcels.map(p => ({
+    id: p.id || null,
+    area: Number(Number(p.area || 0).toFixed(4)),
+    coords: String(p.coords || '').trim(),
+    commodity: p.commodity || null,
+    gpxFileName: p.gpxFileName || null
+  }))
+  return {
+    id: f.id || null,
+    name: String(f.name || '').trim().toUpperCase(),
+    address: f.address && String(f.address).trim() ? String(f.address).trim() : null,
+    location: typeof f.location === 'string' ? f.location : resolveFarmerBarangay(f),
+    commodity: f.commodity || 'Rice',
+    area: f.area !== undefined ? Number(f.area) : 0,
+    parcels,
+    gpxFileName: f.gpxFileName || null,
+    gpxFileNames: Array.isArray(f.gpxFileNames) ? [...f.gpxFileNames] : (f.gpxFileName ? [f.gpxFileName] : []),
+    updated_at: f.updated_at || null
+  }
+}
+
 function toCleanJson(val) {
   if (val === null || val === undefined) return val
   try {
-    return JSON.parse(JSON.stringify(val, (k, v) => {
-      if (k === 'layer' || k === 'startMarker' || k === 'endMarker' || k === '_leaflet_id' || k === '_farmerRef') {
+    return JSON.parse(JSON.stringify(toRaw(val), (k, v) => {
+      if (k === 'layer' || k === 'startMarker' || k === 'endMarker' || k === '_leaflet_id' || k === '_farmerRef' || k === '_cachedCommodities' || k === '_cachedBarangay') {
         return undefined
       }
       return v
@@ -1364,6 +1412,18 @@ function toCleanJson(val) {
   } catch (e) {
     return null
   }
+}
+
+function prepareDataForStorage(key, val) {
+  if (val === null || val === undefined) return null
+  const rawVal = toRaw(val)
+  if (key === STORAGE_KEY_GPX_TRACKS && Array.isArray(rawVal)) {
+    return rawVal.map(sanitizeGpxTrack).filter(Boolean)
+  }
+  if (key === STORAGE_KEY_FARMERS && Array.isArray(rawVal)) {
+    return rawVal.map(sanitizeFarmer).filter(Boolean)
+  }
+  return toCleanJson(rawVal)
 }
 
 const openGisIDB = () => {
@@ -1385,7 +1445,7 @@ const openGisIDB = () => {
 
 const setGisIDB = async (key, val, alreadyClean = false) => {
   try {
-    const cleanVal = alreadyClean ? val : toCleanJson(val)
+    const cleanVal = alreadyClean ? val : prepareDataForStorage(key, val)
     if (cleanVal === null || cleanVal === undefined) return false
 
     const db = await openGisIDB()
@@ -1448,19 +1508,17 @@ const getGisIDB = async (key) => {
 
 async function saveGisStorageData(key, data) {
   if (data === null || data === undefined) return
-  // For large array datasets (GPX tracks), skip the expensive toCleanJson
-  // (JSON.parse(JSON.stringify()) on 40MB+ crashes) and write directly to IDB.
-  // Also skip localStorage entirely for large arrays (5MB quota limit).
-  const isLargeArray = Array.isArray(data) && data.length > 500
-  const cleanData = isLargeArray ? data : toCleanJson(data)
+  // Sanitize to pure cloneable POJO without memory spikes
+  const cleanData = prepareDataForStorage(key, data)
   if (cleanData === null || cleanData === undefined) return
 
-  // Write to IndexedDB (pass alreadyClean flag to avoid double-cleaning)
-  await setGisIDB(key, cleanData, isLargeArray)
+  // Write to IndexedDB
+  await setGisIDB(key, cleanData, true)
 
-  // Only write to localStorage for small datasets (sync timestamp, small lists)
+  // Only write to localStorage for small datasets (sync timestamp, deleted sets)
   // GPX tracks and large farmer lists exceed the 5MB localStorage quota
-  if (!isLargeArray) {
+  const isLargeArray = Array.isArray(cleanData) && cleanData.length > 500
+  if (!isLargeArray && key !== STORAGE_KEY_GPX_TRACKS && key !== STORAGE_KEY_FARMERS) {
     try {
       localStorage.setItem(key, JSON.stringify(cleanData))
     } catch (e) {
@@ -2246,41 +2304,89 @@ function clearAllFarmerMarkers() {
   farmerMarkers.length = 0
 }
 
+function normalizeFarmerRecord(rawFarmer) {
+  if (!rawFarmer) return null
+  const f = { ...rawFarmer }
+  f.name = (f.name || '').trim().toUpperCase()
+  f.address = f.address && String(f.address).trim() ? String(f.address).trim() : null
+
+  let rawParcels = f.parcels
+  if (typeof rawParcels === 'string') {
+    try {
+      rawParcels = JSON.parse(rawParcels)
+    } catch (_) {
+      rawParcels = []
+    }
+  }
+  if (!Array.isArray(rawParcels) || rawParcels.length === 0) {
+    if (f.coords && f.area !== undefined) {
+      rawParcels = [{
+        area: Number(Number(f.area || 0).toFixed(4)),
+        coords: String(f.coords).trim(),
+        gpxFileName: f.gpxFileName || null
+      }]
+    } else {
+      rawParcels = []
+    }
+  }
+
+  f.parcels = rawParcels.map(p => {
+    const coordsStr = String(p.coords || '').trim()
+    let comm = p.commodity || null
+    if (!comm && coordsStr) {
+      const [lat, lng] = coordsStr.split(',').map(Number)
+      if (!isNaN(lat) && !isNaN(lng)) {
+        comm = getCommodityFromCoordinates(lat, lng)
+      }
+    }
+    return {
+      id: p.id || null,
+      area: Number(Number(p.area || 0).toFixed(4)),
+      coords: coordsStr,
+      commodity: comm,
+      gpxFileName: p.gpxFileName || null
+    }
+  })
+
+  f.area = f.parcels.reduce((sum, p) => sum + (Number(p.area) || 0), 0)
+
+  const resolvedComms = resolveFarmerCommodities(f)
+  if (resolvedComms.length > 0) {
+    f.commodity = resolvedComms[0]
+  } else if (!f.commodity) {
+    f.commodity = 'Rice'
+  }
+
+  f.location = resolveFarmerBarangay(f)
+  return f
+}
+
 async function renderFarmersData(farmersList) {
   const activePopup = captureActivePopup()
   clearAllFarmerMarkers()
-  farmers.value = Array.isArray(farmersList) ? farmersList : []
-  const total = farmers.value.length
+  const rawList = Array.isArray(farmersList) ? farmersList : []
+  const normalizedList = []
+
+  const total = rawList.length
   const CHUNK = 100
   for (let i = 0; i < total; i += CHUNK) {
     const end = Math.min(i + CHUNK, total)
     const chunkMarkers = []
     for (let k = i; k < end; k++) {
-      const f = farmers.value[k]
-      if (!f.parcels) {
-        f.parcels = []
-        if (f.coords && f.area) f.parcels.push({ area: Number(f.area), coords: String(f.coords) })
-      }
-      f.area = f.parcels.reduce((sum, p) => sum + (Number(p.area) || 0), 0)
+      const f = normalizeFarmerRecord(rawList[k])
+      if (!f) continue
+      normalizedList.push(f)
+
       f.parcels.forEach((p, idx) => {
         if (p.coords) {
           const [lat, lng] = p.coords.split(',').map(Number)
           if (!isNaN(lat) && !isNaN(lng)) {
-            if (!p.commodity) {
-              const matchedComm = getCommodityFromCoordinates(lat, lng)
-              if (matchedComm) p.commodity = matchedComm
-            }
             const marker = createFarmerMarkerObject(f, lat, lng, idx)
             chunkMarkers.push(marker)
             farmerMarkers.push({ marker: markRaw(marker), farmer: f, parcelIndex: idx })
           }
         }
       })
-      const resolvedComms = resolveFarmerCommodities(f)
-      if (resolvedComms.length > 0) {
-        f.commodity = resolvedComms[0]
-      }
-      resolveFarmerBarangay(f)
     }
     if (chunkMarkers.length > 0 && farmerLayerGroup) {
       farmerLayerGroup.addLayers(chunkMarkers)
@@ -2293,49 +2399,38 @@ async function renderFarmersData(farmersList) {
       await new Promise(r => setTimeout(r, 0))
     }
   }
+  farmers.value = normalizedList
   restoreActivePopup(activePopup)
 }
 
 // Sample Data & Storage
 async function loadSampleData() {
   const saved = await loadGisStorageData(STORAGE_KEY_FARMERS)
-  if (saved && Array.isArray(saved)) {
-    farmers.value = saved.filter(f => !deletedFarmerNames.value.has((f.name || '').trim().toUpperCase()))
-  } else {
-    farmers.value = []
-  }
+  const rawList = (saved && Array.isArray(saved))
+    ? saved.filter(f => !deletedFarmerNames.value.has((f.name || '').trim().toUpperCase()))
+    : []
 
-  const total = farmers.value.length
+  const normalizedList = []
+  const total = rawList.length
   const CHUNK = 100
   for (let i = 0; i < total; i += CHUNK) {
     const end = Math.min(i + CHUNK, total)
     const chunkMarkers = []
     for (let k = i; k < end; k++) {
-      const f = farmers.value[k]
-      if (!f.parcels) {
-        f.parcels = []
-        if (f.coords && f.area) f.parcels.push({ area: Number(f.area), coords: String(f.coords) })
-      }
-      f.area = f.parcels.reduce((sum, p) => sum + (Number(p.area) || 0), 0)
+      const f = normalizeFarmerRecord(rawList[k])
+      if (!f) continue
+      normalizedList.push(f)
+
       f.parcels.forEach((p, idx) => {
         if (p.coords) {
           const [lat, lng] = p.coords.split(',').map(Number)
           if (!isNaN(lat) && !isNaN(lng)) {
-            if (!p.commodity) {
-              const matchedComm = getCommodityFromCoordinates(lat, lng)
-              if (matchedComm) p.commodity = matchedComm
-            }
             const marker = createFarmerMarkerObject(f, lat, lng, idx)
             chunkMarkers.push(marker)
             farmerMarkers.push({ marker: markRaw(marker), farmer: f, parcelIndex: idx })
           }
         }
       })
-      const resolvedComms = resolveFarmerCommodities(f)
-      if (resolvedComms.length > 0) {
-        f.commodity = resolvedComms[0]
-      }
-      resolveFarmerBarangay(f)
     }
     if (chunkMarkers.length > 0 && farmerLayerGroup) {
       farmerLayerGroup.addLayers(chunkMarkers)
@@ -2348,6 +2443,7 @@ async function loadSampleData() {
       await new Promise(r => setTimeout(r, 0))
     }
   }
+  farmers.value = normalizedList
 }
 
 async function persistFarmers() {
@@ -5582,33 +5678,57 @@ async function applyGisDeltaChanges(deltaData) {
   let farmerChangesCount = 0
   let trackChangesCount = 0
 
-  // 1. Handle Deleted Farmers
+  // 1. Work with plain arrays for blazing performance and no reactive re-renders in loops
+  const currentFarmers = [...farmers.value]
+  const currentTracks = [...uploadedFiles.value]
+
+  // 2. Build fast O(1) index Maps
+  const farmerIndexById = new Map()
+  const farmerIndexByName = new Map()
+  currentFarmers.forEach((f, idx) => {
+    if (f.id) farmerIndexById.set(f.id, idx)
+    if (f.name) farmerIndexByName.set(f.name.trim().toUpperCase(), idx)
+  })
+
+  const trackIndexById = new Map()
+  const trackIndexByName = new Map()
+  currentTracks.forEach((t, idx) => {
+    if (t.id) trackIndexById.set(t.id, idx)
+    if (t.name) trackIndexByName.set(t.name.trim().toLowerCase(), idx)
+  })
+
+  // 3. Handle Deleted Farmers
   const deletedFarmers = (deltaData.deleted && Array.isArray(deltaData.deleted.farmers)) ? deltaData.deleted.farmers : []
+  const farmersToDeleteSet = new Set()
   for (let i = 0; i < deletedFarmers.length; i++) {
     const df = deletedFarmers[i]
     const id = df.id
     const nameUpper = (df.name || '').trim().toUpperCase()
-    const idx = farmers.value.findIndex(f => (id && f.id === id) || (nameUpper && f.name && f.name.trim().toUpperCase() === nameUpper))
-    if (idx >= 0) {
-      const targetFarmer = farmers.value[idx]
+    const idx = (id && farmerIndexById.has(id))
+      ? farmerIndexById.get(id)
+      : (nameUpper && farmerIndexByName.has(nameUpper) ? farmerIndexByName.get(nameUpper) : -1)
+
+    if (idx >= 0 && currentFarmers[idx]) {
+      const targetFarmer = currentFarmers[idx]
       removeFarmerMarker(targetFarmer)
-      farmers.value.splice(idx, 1)
+      farmersToDeleteSet.add(idx)
       farmerChangesCount++
-    }
-    if (i > 0 && i % 100 === 0) {
-      await yieldToMain()
     }
   }
 
-  // 2. Handle Deleted GPX Tracks
+  // 4. Handle Deleted GPX Tracks
   const deletedTracks = (deltaData.deleted && Array.isArray(deltaData.deleted.gpx_tracks)) ? deltaData.deleted.gpx_tracks : []
+  const tracksToDeleteSet = new Set()
   for (let i = 0; i < deletedTracks.length; i++) {
     const dt = deletedTracks[i]
     const id = dt.id
     const nameLower = (dt.name || '').trim().toLowerCase()
-    const idx = uploadedFiles.value.findIndex(t => (id && t.id === id) || (nameLower && t.name && t.name.trim().toLowerCase() === nameLower))
-    if (idx >= 0) {
-      const targetTrack = uploadedFiles.value[idx]
+    const idx = (id && trackIndexById.has(id))
+      ? trackIndexById.get(id)
+      : (nameLower && trackIndexByName.has(nameLower) ? trackIndexByName.get(nameLower) : -1)
+
+    if (idx >= 0 && currentTracks[idx]) {
+      const targetTrack = currentTracks[idx]
       if (targetTrack.layer && gpxTracksLayerGroup) {
         try { gpxTracksLayerGroup.removeLayer(targetTrack.layer) } catch (_) {}
       }
@@ -5616,48 +5736,77 @@ async function applyGisDeltaChanges(deltaData) {
         if (targetTrack.startMarker) try { gpxMarkersLayerGroup.removeLayer(targetTrack.startMarker) } catch (_) {}
         if (targetTrack.endMarker) try { gpxMarkersLayerGroup.removeLayer(targetTrack.endMarker) } catch (_) {}
       }
-      uploadedFiles.value.splice(idx, 1)
+      tracksToDeleteSet.add(idx)
       trackChangesCount++
-    }
-    if (i > 0 && i % 50 === 0) {
-      await yieldToMain()
     }
   }
 
-  // 3. Upsert Updated / New Farmers
+  // Filter out deleted items and rebuild index maps
+  const activeFarmers = currentFarmers.filter((_, idx) => !farmersToDeleteSet.has(idx))
+  const activeTracks = currentTracks.filter((_, idx) => !tracksToDeleteSet.has(idx))
+
+  farmerIndexById.clear()
+  farmerIndexByName.clear()
+  activeFarmers.forEach((f, idx) => {
+    if (f.id) farmerIndexById.set(f.id, idx)
+    if (f.name) farmerIndexByName.set(f.name.trim().toUpperCase(), idx)
+  })
+
+  trackIndexById.clear()
+  trackIndexByName.clear()
+  activeTracks.forEach((t, idx) => {
+    if (t.id) trackIndexById.set(t.id, idx)
+    if (t.name) trackIndexByName.set(t.name.trim().toLowerCase(), idx)
+  })
+
+  // 5. Upsert Updated / New Farmers with full normalization & batch marker collection
   const incomingFarmers = Array.isArray(deltaData.farmers) ? deltaData.farmers : []
+  const newMarkersToInsert = []
+
   for (let i = 0; i < incomingFarmers.length; i++) {
-    const serverFarmer = incomingFarmers[i]
-    const nameUpper = (serverFarmer.name || '').trim().toUpperCase()
+    const rawFarmer = incomingFarmers[i]
+    if (!rawFarmer) continue
+    const nameUpper = (rawFarmer.name || '').trim().toUpperCase()
     if (deletedFarmerNames.value.has(nameUpper)) continue
 
-    const idx = farmers.value.findIndex(f => (serverFarmer.id && f.id === serverFarmer.id) || (nameUpper && f.name && f.name.trim().toUpperCase() === nameUpper))
-    if (idx >= 0) {
-      const existing = farmers.value[idx]
-      removeFarmerMarker(existing)
-      farmers.value[idx] = { ...existing, ...serverFarmer }
+    const normalized = normalizeFarmerRecord(rawFarmer)
+    if (!normalized) continue
+
+    const idx = (normalized.id && farmerIndexById.has(normalized.id))
+      ? farmerIndexById.get(normalized.id)
+      : (nameUpper && farmerIndexByName.has(nameUpper) ? farmerIndexByName.get(nameUpper) : -1)
+
+    if (idx >= 0 && activeFarmers[idx]) {
+      removeFarmerMarker(activeFarmers[idx])
+      activeFarmers[idx] = normalized
     } else {
-      farmers.value.push(serverFarmer)
+      activeFarmers.push(normalized)
+      const newIdx = activeFarmers.length - 1
+      if (normalized.id) farmerIndexById.set(normalized.id, newIdx)
+      if (nameUpper) farmerIndexByName.set(nameUpper, newIdx)
     }
-    // Re-add markers for this updated farmer's parcels
-    const current = farmers.value.find(f => (serverFarmer.id && f.id === serverFarmer.id) || (nameUpper && f.name && f.name.trim().toUpperCase() === nameUpper))
-    if (current && Array.isArray(current.parcels)) {
-      current.parcels.forEach((p, pIdx) => {
+
+    // Add markers for all parcels of this farmer
+    if (Array.isArray(normalized.parcels)) {
+      normalized.parcels.forEach((p, pIdx) => {
         if (p.coords) {
           const [lat, lng] = p.coords.split(',').map(Number)
           if (!isNaN(lat) && !isNaN(lng)) {
-            addFarmerMarker(current, lat, lng, pIdx)
+            const marker = createFarmerMarkerObject(normalized, lat, lng, pIdx)
+            newMarkersToInsert.push(marker)
+            farmerMarkers.push({ marker: markRaw(marker), farmer: normalized, parcelIndex: pIdx })
           }
         }
       })
     }
     farmerChangesCount++
-    if (i > 0 && i % 50 === 0) {
+
+    if (i > 0 && i % 100 === 0) {
       await yieldToMain()
     }
   }
 
-  // 4. Upsert Updated / New GPX Tracks
+  // 6. Upsert Updated / New GPX Tracks
   const incomingTracks = Array.isArray(deltaData.gpx_tracks) ? deltaData.gpx_tracks : []
   const colors = ['#2196F3', '#4CAF50', '#FF9800', '#9C27B0', '#F44336', '#00BCD4', '#795548', '#607D8B']
 
@@ -5672,7 +5821,7 @@ async function applyGisDeltaChanges(deltaData) {
       : extractTrackPoints(track)
     if (normPoints.length === 0) continue
 
-    const trackColor = track.color || colors[(uploadedFiles.value.length + i) % colors.length]
+    const trackColor = track.color || colors[(activeTracks.length + i) % colors.length]
     const center = normalizeTrackCenter(track.center, normPoints)
     const isEnclosed = track.isEnclosed !== undefined ? Boolean(track.isEnclosed) : isTrackEnclosed(normPoints, 0.05)
     const areaHa = Number(track.areaHectares || track.area_hectares || 0) || (calculatePolygonArea(normPoints) * 100)
@@ -5690,7 +5839,7 @@ async function applyGisDeltaChanges(deltaData) {
 
     const trackObj = {
       ...track,
-      name: track.name || `Track ${uploadedFiles.value.length + 1}`,
+      name: track.name || `Track ${activeTracks.length + 1}`,
       points: normPoints,
       center,
       bbox: [minLat, minLng, maxLat, maxLng],
@@ -5705,9 +5854,12 @@ async function applyGisDeltaChanges(deltaData) {
       endMarker: null
     }
 
-    const idx = uploadedFiles.value.findIndex(t => (track.id && t.id === track.id) || (nameLower && t.name && t.name.trim().toLowerCase() === nameLower))
-    if (idx >= 0) {
-      const oldTrack = uploadedFiles.value[idx]
+    const idx = (track.id && trackIndexById.has(track.id))
+      ? trackIndexById.get(track.id)
+      : (nameLower && trackIndexByName.has(nameLower) ? trackIndexByName.get(nameLower) : -1)
+
+    if (idx >= 0 && activeTracks[idx]) {
+      const oldTrack = activeTracks[idx]
       if (oldTrack.layer && gpxTracksLayerGroup) {
         try { gpxTracksLayerGroup.removeLayer(oldTrack.layer) } catch (_) {}
       }
@@ -5715,18 +5867,29 @@ async function applyGisDeltaChanges(deltaData) {
         if (oldTrack.startMarker) try { gpxMarkersLayerGroup.removeLayer(oldTrack.startMarker) } catch (_) {}
         if (oldTrack.endMarker) try { gpxMarkersLayerGroup.removeLayer(oldTrack.endMarker) } catch (_) {}
       }
-      uploadedFiles.value[idx] = trackObj
+      activeTracks[idx] = trackObj
     } else {
-      uploadedFiles.value.push(trackObj)
+      activeTracks.push(trackObj)
+      const newIdx = activeTracks.length - 1
+      if (track.id) trackIndexById.set(track.id, newIdx)
+      if (nameLower) trackIndexByName.set(nameLower, newIdx)
     }
     trackChangesCount++
 
-    if (i > 0 && i % 30 === 0) {
+    if (i > 0 && i % 100 === 0) {
       await yieldToMain()
     }
   }
 
-  // 5. Persist merged datasets and update viewport layers
+  // 7. Atomic Commit to Vue Refs & Bulk Marker Addition
+  if (newMarkersToInsert.length > 0 && farmerLayerGroup) {
+    farmerLayerGroup.addLayers(newMarkersToInsert)
+  }
+
+  farmers.value = activeFarmers
+  uploadedFiles.value = activeTracks
+
+  // 8. Persist merged datasets and update viewport layers
   if (farmerChangesCount > 0) {
     farmersListRevision.value++
     await persistFarmers()
@@ -5735,10 +5898,12 @@ async function applyGisDeltaChanges(deltaData) {
     gpxListRevision.value++
     updateVisibleGpxLayers()
     await persistGpxTracks()
+  }
+  if (farmerChangesCount > 0 || trackChangesCount > 0) {
     await reconcileOrphanGpxTracks()
   }
 
-  // 6. Update last synced timestamp
+  // 9. Update last synced timestamp
   if (deltaData.server_time) {
     lastSyncedTimestamp.value = deltaData.server_time
     await saveGisStorageData(STORAGE_KEY_LAST_SYNCED, deltaData.server_time)
@@ -5787,7 +5952,7 @@ async function fetchGisDataFromServer(showNotification = false, isBackground = f
         // Process farmers independently so a failure doesn't block tracks
         try {
           await renderFarmersData(serverFarmers)
-          await saveGisStorageData(STORAGE_KEY_FARMERS, serverFarmers)
+          await persistFarmers()
           console.log(`[GIS] Farmers rendered & saved: ${farmers.value.length}`)
         } catch (farmerErr) {
           console.error('[GIS] Error rendering/saving farmers:', farmerErr)
@@ -5796,7 +5961,6 @@ async function fetchGisDataFromServer(showNotification = false, isBackground = f
         // Process tracks independently so a failure doesn't block farmers
         try {
           await renderGpxTracksData(serverTracks)
-          await saveGisStorageData(STORAGE_KEY_GPX_TRACKS, serverTracks)
           console.log(`[GIS] Tracks rendered & saved: ${uploadedFiles.value.length}`)
         } catch (trackErr) {
           console.error('[GIS] Error rendering/saving GPX tracks:', trackErr)
